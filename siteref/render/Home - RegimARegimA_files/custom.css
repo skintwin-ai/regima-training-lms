@@ -1,0 +1,73 @@
+/* Do not delete this line */
+
+/* ------------------------------------------
+* BACKUP THIS FILE WHEN YOU UPDATE THE THEME!
+------------------------------------------ */
+
+
+
+/* Basic Styles
+-------------------------------------------------------------- */
+
+/* Add basic rules here */
+
+#content .page-row.full-img {
+					background-color: #00082c !important;
+}
+
+#content .lol-item-heading-wide h2 {color: #FFFFFF;
+}
+
+#content .lol-item-heading h2 {
+  margin-bottom: 0;
+  font-family: "Montserrat";
+  font-size: 30px;
+  font-weight: 400;
+  line-height: 40px;
+  color: #262f3a;
+  text-transform: none;
+}
+
+#content .lol-item-heading-small h2 {
+  margin-bottom: 0;
+  font-family: "Montserrat";
+  font-size: 22px;
+  font-weight: 400;
+  line-height: 32px;
+  color: #262f3a;
+  text-transform: none;
+}
+/* Min width 992px
+-------------------------------------------------------------- */
+
+@media (min-width: 992px) {
+
+	/* Add rules here */
+
+}
+
+
+
+
+
+/* Min width 1200px
+-------------------------------------------------------------- */
+
+@media (min-width: 1200px) {
+
+	/* Add rules here */
+
+}
+
+
+
+
+
+/* Retina styles
+-------------------------------------------------------------- */
+
+@media only screen and (-webkit-min-device-pixel-ratio: 2), only screen and (min-device-pixel-ratio: 2) {
+
+	/* Add rules here */
+
+}
