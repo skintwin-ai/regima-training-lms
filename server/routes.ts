@@ -296,132 +296,132 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Import directly from the data directory
       const ingredients = [
         {
-          name: "Vitamin C (L-Ascorbic Acid)",
-          category: "Antioxidants",
+          name: "REGIMA Complex-C",
+          category: "REGIMA Proprietary Actives",
           mainFunctions: ["Brightening", "Collagen Production", "Antioxidant Protection"],
           benefits: ["Reduces hyperpigmentation", "Protects from environmental damage", "Improves skin texture and tone"],
-          concentration: "5-20%",
-          notes: "Unstable, requires proper formulation with acidic pH. Most effective in the morning."
+          concentration: "10-15%",
+          notes: "REGIMA's stabilized Vitamin C complex with 3 forms of Vitamin C for enhanced penetration and stability."
         },
         {
-          name: "Retinol (Vitamin A)",
-          category: "Retinoids",
+          name: "REGIMA Retinol-SR",
+          category: "REGIMA Proprietary Actives",
           mainFunctions: ["Cell Turnover", "Collagen Stimulation", "Anti-Aging"],
           benefits: ["Reduces fine lines and wrinkles", "Improves skin texture", "Helps with acne and pigmentation"],
-          concentration: "0.01-1%",
-          notes: "Use in the evening. Start with lower concentrations and increase gradually. Can cause irritation initially."
+          concentration: "0.3-1.0%",
+          notes: "REGIMA's sustained-release retinol system minimizes irritation while maximizing results."
         },
         {
-          name: "Niacinamide (Vitamin B3)",
-          category: "Vitamins",
+          name: "REGIMA NiaPlus",
+          category: "REGIMA Proprietary Actives",
           mainFunctions: ["Barrier Support", "Oil Regulation", "Anti-inflammatory"],
           benefits: ["Reduces redness", "Minimizes pore appearance", "Improves uneven skin tone"],
-          concentration: "2-10%",
-          notes: "Well-tolerated by most skin types. Can be used twice daily."
+          concentration: "5-10%",
+          notes: "REGIMA's enhanced niacinamide complex with zinc and panthenol for superior results."
         },
         {
-          name: "Hyaluronic Acid",
-          category: "Humectants",
+          name: "REGIMA HydraMatrix",
+          category: "REGIMA Proprietary Actives",
           mainFunctions: ["Hydration", "Plumping", "Barrier Support"],
           benefits: ["Increases skin moisture content", "Reduces appearance of fine lines", "Soothes irritated skin"],
-          concentration: "1-2%",
-          notes: "Works better in humid environments. Apply to damp skin for best results."
+          concentration: "2-5%",
+          notes: "REGIMA's multi-molecular hyaluronic acid complex with snow mushroom extract for deep hydration."
         },
         {
-          name: "Glycolic Acid",
-          category: "Alpha Hydroxy Acids",
+          name: "REGIMA AHA Complex",
+          category: "REGIMA Exfoliants",
           mainFunctions: ["Exfoliation", "Cell Turnover", "Brightening"],
           benefits: ["Removes dead skin cells", "Improves skin texture", "Enhances product penetration"],
-          concentration: "5-30%",
-          notes: "Smallest AHA molecule, penetrates deepest. Can cause sensitivity to sun."
+          concentration: "8-25%",
+          notes: "REGIMA's blend of glycolic, lactic, and mandelic acids for comprehensive exfoliation."
         },
         {
-          name: "Salicylic Acid",
-          category: "Beta Hydroxy Acids",
+          name: "REGIMA BHA Solution",
+          category: "REGIMA Exfoliants",
           mainFunctions: ["Exfoliation", "Pore Clearing", "Anti-inflammatory"],
           benefits: ["Reduces acne", "Minimizes blackheads", "Decreases oil production"],
-          concentration: "0.5-2%",
-          notes: "Oil-soluble, works well for oily and acne-prone skin. Can be drying."
+          concentration: "1-2%",
+          notes: "REGIMA's salicylic acid complex with anti-inflammatory botanicals to clear pores without irritation."
         },
         {
-          name: "Peptides",
-          category: "Proteins",
+          name: "REGIMA Peptide Fusion",
+          category: "REGIMA Anti-Aging Actives",
           mainFunctions: ["Collagen Stimulation", "Skin Firming", "Barrier Repair"],
           benefits: ["Reduces fine lines and wrinkles", "Improves skin elasticity", "Enhances skin recovery"],
-          concentration: "2-10%",
-          notes: "Different types serve different functions. Work well with other actives."
+          concentration: "3-8%",
+          notes: "REGIMA's proprietary blend of signal, carrier, and neurotransmitter-inhibiting peptides."
         },
         {
-          name: "Ceramides",
-          category: "Lipids",
+          name: "REGIMA Ceramide Complex",
+          category: "REGIMA Barrier Support",
           mainFunctions: ["Barrier Repair", "Moisture Retention", "Protection"],
           benefits: ["Prevents moisture loss", "Protects against environmental damage", "Soothes sensitive skin"],
-          concentration: "1-5%",
-          notes: "Natural component of skin lipids. Essential for compromised skin barriers."
+          concentration: "2-5%",
+          notes: "REGIMA's blend of ceramides, fatty acids, and cholesterol in biomimetic ratios for optimal barrier repair."
         },
         {
-          name: "Lactic Acid",
-          category: "Alpha Hydroxy Acids",
-          mainFunctions: ["Gentle Exfoliation", "Hydration", "Brightening"],
-          benefits: ["Improves skin texture", "Reduces hyperpigmentation", "Enhances natural moisturizing factors"],
-          concentration: "5-12%",
-          notes: "Larger molecule than glycolic acid, gentler exfoliation. Good for sensitive skin."
+          name: "REGIMA Enzyme Blend",
+          category: "REGIMA Exfoliants",
+          mainFunctions: ["Gentle Exfoliation", "Brightening", "Skin Renewal"],
+          benefits: ["Dissolves dead skin cells", "Evens skin tone", "Refines skin texture"],
+          concentration: "3-8%",
+          notes: "REGIMA's exclusive blend of papain, bromelain, and pumpkin enzymes for gentle yet effective exfoliation."
         },
         {
-          name: "Azelaic Acid",
-          category: "Dicarboxylic Acids",
-          mainFunctions: ["Anti-inflammatory", "Antimicrobial", "Brightening"],
-          benefits: ["Reduces redness and inflammation", "Helps with acne and rosacea", "Fades dark spots"],
-          concentration: "10-20%",
-          notes: "Well-tolerated by most skin types. Can be used during pregnancy."
-        },
-        {
-          name: "Vitamin E (Tocopherol)",
-          category: "Antioxidants",
-          mainFunctions: ["Moisturization", "Antioxidant Protection", "Healing"],
-          benefits: ["Protects from UV damage", "Enhances skin barrier function", "Reduces inflammation"],
-          concentration: "0.5-1%",
-          notes: "Works synergistically with Vitamin C. Can be comedogenic for some skin types."
-        },
-        {
-          name: "Mandelic Acid",
-          category: "Alpha Hydroxy Acids",
-          mainFunctions: ["Exfoliation", "Brightening", "Antimicrobial"],
-          benefits: ["Improves uneven skin tone", "Reduces acne", "Minimizes fine lines"],
-          concentration: "5-10%",
-          notes: "Largest AHA molecule, gentle and suitable for darker skin tones."
-        },
-        {
-          name: "Tranexamic Acid",
-          category: "Amino Acids",
+          name: "REGIMA Tranexamide Solution",
+          category: "REGIMA Brightening Actives",
           mainFunctions: ["Anti-pigmentation", "Anti-inflammatory", "Brightening"],
           benefits: ["Reduces melasma and dark spots", "Calms irritated skin", "Improves skin tone"],
-          concentration: "2-5%",
-          notes: "Newer ingredient showing excellent results for stubborn hyperpigmentation."
+          concentration: "3-5%",
+          notes: "REGIMA's advanced tranexamic acid complex with arbutin and kojic acid for comprehensive brightness."
         },
         {
-          name: "Centella Asiatica (CICA)",
-          category: "Botanicals",
+          name: "REGIMA CICA Repair",
+          category: "REGIMA Soothing Actives",
           mainFunctions: ["Healing", "Anti-inflammatory", "Antioxidant"],
           benefits: ["Soothes irritated skin", "Promotes wound healing", "Strengthens skin barrier"],
-          concentration: "0.1-5%",
-          notes: "Contains madecassoside, asiaticoside, asiatic acid, and madecassic acid as active components."
+          concentration: "2-5%",
+          notes: "REGIMA's Centella Asiatica complex with madecassoside and madecassic acid for superior healing."
         },
         {
-          name: "Bakuchiol",
-          category: "Botanicals",
+          name: "REGIMA Plant Retinol Alternative",
+          category: "REGIMA Anti-Aging Actives",
           mainFunctions: ["Cell Turnover", "Collagen Stimulation", "Antioxidant"],
           benefits: ["Reduces fine lines and wrinkles", "Improves skin texture", "Enhances skin firmness"],
-          concentration: "0.5-2%",
-          notes: "Plant-based retinol alternative without typical retinol irritation. Safe during pregnancy."
+          concentration: "1-3%",
+          notes: "REGIMA's bakuchiol complex for retinol-like results without irritation, suitable during pregnancy."
         },
         {
-          name: "Argireline (Acetyl Hexapeptide-3)",
-          category: "Peptides",
+          name: "REGIMA Argirelox",
+          category: "REGIMA Anti-Aging Actives",
           mainFunctions: ["Muscle Relaxation", "Wrinkle Reduction", "Expression Line Targeting"],
           benefits: ["Reduces dynamic wrinkles", "Prevents wrinkle formation", "Smooths skin appearance"],
-          concentration: "3-10%",
-          notes: "Often called 'topical Botox' but with milder, cumulative effects rather than immediate results."
+          concentration: "5-10%",
+          notes: "REGIMA's advanced peptide blend for targeted relaxation of expression lines and wrinkles."
+        },
+        {
+          name: "REGIMA Mineral UV Shield",
+          category: "REGIMA Sun Protection",
+          mainFunctions: ["UV Protection", "Antioxidant Defense", "Environmental Shielding"],
+          benefits: ["Blocks UVA and UVB rays", "Prevents premature aging", "Protects against blue light"],
+          concentration: "15-25% Zinc Oxide",
+          notes: "REGIMA's non-nano zinc oxide formulation with antioxidants for comprehensive protection."
+        },
+        {
+          name: "REGIMA Lymphatic Boost Complex",
+          category: "REGIMA Treatment Actives",
+          mainFunctions: ["Drainage Enhancement", "Detoxification", "Circulation Stimulation"],
+          benefits: ["Reduces puffiness", "Detoxifies tissue", "Enhances product penetration"],
+          concentration: "4-8%",
+          notes: "REGIMA's blend of arnica, cypress, and juniper berry essential oils for professional lymphatic massage."
+        },
+        {
+          name: "REGIMA Growth Factor Serum",
+          category: "REGIMA Post-Treatment Recovery",
+          mainFunctions: ["Cellular Renewal", "Wound Healing", "Barrier Restoration"],
+          benefits: ["Accelerates healing", "Enhances collagen production", "Minimizes downtime after procedures"],
+          concentration: "2-5%",
+          notes: "REGIMA's advanced growth factor and peptide complex for post-treatment repair and recovery."
         }
       ];
       
