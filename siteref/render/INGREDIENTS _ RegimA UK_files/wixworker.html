@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<!-- saved from url=(1277)https://analytics.sitewit.com/wixworker.aspx?lang=en&dateNumberFormat=en-gb&isPrimaryLanguage=true&pageId=masterPage&compId=tpaWorker_23&viewerCompId=tpaWorker_23&siteRevision=4&viewMode=site&deviceType=desktop&locale=en&tz=Europe%2FLondon&regionalLanguage=en&endpointType=worker&instance=v6rScPv8wkkaeuSZ1s7vISlyPotBfc4nJyYJ4cQMbM0.eyJpbnN0YW5jZUlkIjoiMDY4MTEyNmItYjhkZi00YWE0LTk0YjgtMWFjYjJhNDJhNjY5IiwiYXBwRGVmSWQiOiIxM2ViMDQ4OS0yNzk2LTljZGItOWNiZi0zOTljZDgyM2NiNDUiLCJzaWduRGF0ZSI6IjIwMjUtMDUtMDhUMTU6Mzc6NTMuNjQ1WiIsImRlbW9Nb2RlIjpmYWxzZSwiYWlkIjoiNjRmMGNjMjctZDI1OS00NzFmLTkxMDUtMTg3NjRjMmNiNjZlIiwic2l0ZU93bmVySWQiOiIyMzk3NGI0YS1jMGFmLTQ4OTAtYmM0Mi00YjI4MGFhMWRiYTYiLCJicyI6ImJOQ2VsV0dnOGpaWTVXT3NfeUI3cnIxMUJmbld4eTlSNDRfUk5oTXJqMzQiLCJzY2QiOiIyMDE4LTA2LTI1VDEzOjAwOjQyLjUyOFoifQ&currency=GBP&currentCurrency=GBP&commonConfig=%7B%22brand%22%3A%22wix%22%2C%22host%22%3A%22VIEWER%22%2C%22bsi%22%3A%22%22%2C%22siteRevision%22%3A%224%22%2C%22branchId%22%3A%2238a39c2a-342c-4543-83b8-8458bb5d2cf0%22%2C%22renderingFlow%22%3A%22NONE%22%2C%22language%22%3A%22en%22%2C%22locale%22%3A%22en-gb%22%2C%22BSI%22%3A%22%22%7D&currentRoute=.%2F&consent-policy=%7B%22func%22%3A0%2C%22anl%22%3A0%2C%22adv%22%3A0%2C%22dt3%22%3A1%2C%22ess%22%3A1%7D&vsi=eb3028bc-859f-4638-b258-2e46b040f022 -->
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+        <script type="text/javascript" src="./Wix.js.download"></script>
+        <script>
+var _sw_wix = function () {
+    return {
+        site_info: null,
+        referrer: null,
+        wix_setup_code: function () {
+            var head = document.getElementsByTagName("head")[0] || document.documentElement;
+            var swscript = document.createElement("script");
+            var loc = (("https:" == document.location.protocol) ? "https://" : "http://");
+            swscript.type = 'text/javascript';
+            swscript.src = loc + 'analytics.sitewit.com/partner/wix_dashboard/0681126b-b8df-4aa4-94b8-1acb2a42a669/noinit-noconnect/sw.js';
+	        swscript.onload = this.sw_js_loaded;
+	        head.appendChild(swscript);
+        },
+        wix_navigation_change_hook: function (navInfo) {
+            Wix.Worker.getSiteInfo(
+               function (siteInfo) {
+                   try {
+                       if (siteInfo.url.indexOf("//editor.wix.com") < 0){
+                           sw.hit.set_domain(_wix.fixDomain(siteInfo.baseUrl));
+                           sw.hit.set_page(siteInfo.url);
+                           sw.get_referrer = function () {
+                               return _wix.referrer != null ? _wix.referrer : "-";
+                           };
+                           sw.register_page_view();
+                           _wix.referrer = siteInfo.url;
+                       }
+                   }
+                   catch (err) { console.log(err); console.log(siteInfo); }
+               }
+
+           );
+        },
+        sw_js_loaded: function () {
+
+            //_wix.sw = new _sw_analytics();
+            //_wix.sw.id = '0681126b-b8df-4aa4-94b8-1acb2a42a669';
+            //sw.set_beta(true);
+
+
+            Wix.Worker.getSiteInfo(
+                function (siteInfo) {
+                    try {
+                       if (siteInfo.url.indexOf("//editor.wix.com") < 0){
+	                        sw.hit.set_domain(_wix.fixDomain(siteInfo.baseUrl));
+	                        sw.hit.set_page(siteInfo.url);
+	                        _wix.referrer = siteInfo.url;
+	                        sw.get_referrer = function () {
+	                            return siteInfo.referer != null ? siteInfo.referer : "-";
+	                        };
+	                        sw.register_page_view();
+	                        _wix.referrer = siteInfo.referer;
+                       }
+                    }
+                    catch (err) { console.log(err); console.log(siteInfo); }
+                    Wix.Worker.addEventListener(Wix.Events.PAGE_NAVIGATION, _wix.wix_navigation_change_hook);
+
+                }
+            );
+
+        },
+        fixDomain: function (url) {
+            var domain;
+            if (url.indexOf("://") > -1) {
+                domain = url.split('/')[2];
+            }
+            else {
+                domain = url.split('/')[0];
+            }
+            domain = domain.split(':')[0];
+            return domain;
+        }
+    }
+};
+var _wix = new _sw_wix();
+_wix.wix_setup_code();
+		</script><script type="text/javascript" src="./sw.js.download"></script>
+
+
+	</head>
+	<body>
+
+	
+</body></html>
