@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import path from "path";
 import { z } from "zod";
 import {
   insertModuleSchema,
@@ -292,7 +293,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get ingredients data from our catalog
   app.get('/api/ingredients', (_req, res) => {
     try {
-      const { ingredientsCatalog, ingredientsByCategory } = require('./data/ingredients-catalog');
+      // Use path.join to get the correct path to the file
+      const ingredientsCatalogPath = path.join(__dirname, 'data', 'ingredients-catalog.ts');
+      delete require.cache[require.resolve(ingredientsCatalogPath)];
+      const { ingredientsCatalog, ingredientsByCategory } = require(ingredientsCatalogPath);
       
       // Extract unique categories
       const categories = Object.keys(ingredientsByCategory);
@@ -310,7 +314,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get products data from our catalog
   app.get('/api/products', (_req, res) => {
     try {
-      const { productCatalog, productsByCategory, productsByType } = require('./data/product-catalog');
+      // Use path.join to get the correct path to the file
+      const productCatalogPath = path.join(__dirname, 'data', 'product-catalog.ts');
+      delete require.cache[require.resolve(productCatalogPath)];
+      const { productCatalog, productsByCategory, productsByType } = require(productCatalogPath);
       
       // Extract unique categories
       const categories = Object.keys(productsByCategory);
