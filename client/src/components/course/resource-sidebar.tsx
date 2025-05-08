@@ -165,10 +165,18 @@ export function ResourceSidebar({ lessonId, resources, product, userNote, userId
             <p className="text-muted-foreground mt-2 text-sm">{product.description}</p>
             
             <h4 className="font-medium text-foreground mt-4 mb-2">Key Ingredients:</h4>
-            <ul className="text-sm text-muted-foreground space-y-1">
-              {product.ingredients.map((ingredient, index) => (
-                <li key={index}>• {ingredient}</li>
-              ))}
+            <ul className="text-sm text-muted-foreground space-y-3">
+              {product.ingredients.map((ingredient, index) => {
+                const [name, details] = ingredient.includes(' - ') ? ingredient.split(' - ') : [ingredient, ''];
+                return (
+                  <li key={index} className="border-b border-muted pb-2">
+                    <span className="font-semibold text-primary">• {name}</span>
+                    {details && (
+                      <p className="mt-1 text-xs leading-relaxed">{details}</p>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
             
             <Button className="w-full mt-4" variant="outline">

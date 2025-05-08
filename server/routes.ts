@@ -317,9 +317,9 @@ async function initializeData() {
         order: 3
       },
       {
-        title: "REGIMA Product Science",
-        description: "Deep dive into active ingredients, formulations, and scientific basis of REGIMA products",
-        estimatedTime: "75 minutes",
+        title: "Skincare Ingredients & Formulations",
+        description: "Comprehensive study of active ingredients, their functions, benefits, and application in REGIMA products",
+        estimatedTime: "90 minutes",
         order: 4
       },
       {
@@ -490,12 +490,18 @@ async function initializeData() {
       await storage.createResource(resourceData);
     }
     
-    // Create product
+    // Create product with detailed ingredient information
     const product = await storage.createProduct({
       name: "REGIMA Lymphatic Boost Oil",
       description: "This specialized facial oil contains a proprietary blend of arnica, cypress, and juniper berry essential oils that enhance lymphatic drainage results.",
       imageUrl: "https://pixabay.com/get/gf03accc58e9bdb900b9c3f194aad50caa954bcac808800638170bf59999f303a4334c2215d52728b795b39b52181fe94830ef697605b21864efaaeee2d50cc31_1280.jpg",
-      ingredients: ["Arnica Montana Extract", "Cypress Essential Oil", "Juniper Berry Oil", "Marula Oil", "Grapeseed Oil"]
+      ingredients: [
+        "Arnica Montana Extract - Anti-inflammatory; reduces puffiness and swelling; improves circulation",
+        "Cypress Essential Oil - Astringent; stimulates circulation; reduces fluid retention",
+        "Juniper Berry Oil - Detoxifying; lymphatic stimulant; antiseptic properties",
+        "Marula Oil - Rich in antioxidants; deeply moisturizing; enhances skin barrier",
+        "Grapeseed Oil - Lightweight carrier; non-comedogenic; rich in linoleic acid"
+      ]
     });
     
     // Create quiz for the lesson
