@@ -306,6 +306,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Error fetching ingredients data" });
     }
   });
+  
+  // Get products data from our catalog
+  app.get('/api/products', (_req, res) => {
+    try {
+      const { productCatalog, productsByCategory, productsByType } = require('./data/product-catalog');
+      
+      // Extract unique categories
+      const categories = Object.keys(productsByCategory);
+      const types = Object.keys(productsByType);
+      
+      res.json({
+        products: productCatalog,
+        categories: categories,
+        types: types
+      });
+    } catch (err) {
+      console.error("Error fetching products data:", err);
+      res.status(500).json({ message: "Error fetching products data" });
+    }
+  });
 
   const httpServer = createServer(app);
   return httpServer;

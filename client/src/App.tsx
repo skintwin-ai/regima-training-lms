@@ -8,6 +8,7 @@ import Dashboard from "@/pages/dashboard";
 import Lesson from "@/pages/lesson";
 import Modules from "@/pages/modules";
 import Ingredients from "@/pages/ingredients";
+import Products from "@/pages/products";
 import { useState, useEffect } from "react";
 import { apiRequest } from "./lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -102,6 +103,9 @@ function Router() {
       </Route>
       <Route path="/ingredients">
         <Ingredients user={user} onLogin={handleLogin} onLogout={handleLogout} />
+      </Route>
+      <Route path="/products">
+        <Products user={user} onLogin={handleLogin} onLogout={handleLogout} />
       </Route>
       <Route component={NotFound} />
     </Switch>

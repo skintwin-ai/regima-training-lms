@@ -25,7 +25,8 @@ import {
   Home,
   Book,
   Beaker,
-  FileText
+  FileText,
+  ShoppingBag
 } from "lucide-react";
 import { DEFAULT_USER_AVATAR } from "@/lib/constants";
 import { useState } from "react";
@@ -111,6 +112,14 @@ export function MainLayout({ user, onLogin, onLogout, title, children }: MainLay
                           </a>
                         </Link>
                       </li>
+                      <li>
+                        <Link href="/products">
+                          <a className="flex items-center px-4 py-2 text-sm rounded-md hover:bg-accent">
+                            <ShoppingBag size={16} className="mr-2" />
+                            Products Catalog
+                          </a>
+                        </Link>
+                      </li>
                     </ul>
                   </nav>
                 </SheetContent>
@@ -140,6 +149,11 @@ export function MainLayout({ user, onLogin, onLogout, title, children }: MainLay
                 <li>
                   <Link href="/ingredients">
                     <Button variant="ghost">Ingredients Guide</Button>
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/products">
+                    <Button variant="ghost">Products Catalog</Button>
                   </Link>
                 </li>
               </ul>
