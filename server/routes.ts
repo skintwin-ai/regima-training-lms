@@ -296,79 +296,103 @@ export async function registerRoutes(app: Express): Promise<Server> {
 // Initialize sample data for the application
 async function initializeData() {
   try {
-    // Create modules
+    // Create skincare training modules
     const modules = [
       {
-        title: "Introduction to REGIMA",
-        description: "Learn about the REGIMA skincare philosophy and approach",
-        estimatedTime: "30 minutes",
+        title: "Skin Anatomy & Physiology",
+        description: "Essential knowledge of skin structure, functions, and the science behind REGIMA treatments",
+        estimatedTime: "45 minutes",
         order: 1
       },
       {
-        title: "Skin Assessment Basics",
-        description: "Master the fundamentals of skin analysis and client assessment",
-        estimatedTime: "45 minutes",
+        title: "Skin Types & Conditions",
+        description: "Learn to identify different skin types, common conditions, and appropriate REGIMA solutions",
+        estimatedTime: "60 minutes",
         order: 2
       },
       {
-        title: "Product Knowledge",
-        description: "Detailed overview of REGIMA product line and applications",
+        title: "Professional Skincare Analysis",
+        description: "Advanced techniques for skin assessment using REGIMA diagnostic protocols",
         estimatedTime: "60 minutes",
         order: 3
       },
       {
-        title: "Client Consultation",
-        description: "Effective consultation techniques and client communication",
-        estimatedTime: "45 minutes",
+        title: "REGIMA Product Science",
+        description: "Deep dive into active ingredients, formulations, and scientific basis of REGIMA products",
+        estimatedTime: "75 minutes",
         order: 4
       },
       {
-        title: "Advanced Facial Techniques",
-        description: "Master the core techniques of REGIMA facial treatments",
+        title: "Cleansing & Preparation Techniques",
+        description: "Master the REGIMA cleansing protocols for optimal treatment preparation",
         estimatedTime: "45 minutes",
         order: 5
       },
       {
-        title: "Chemical Peels",
-        description: "Safe application and protocols for chemical peels",
+        title: "Exfoliation Methods",
+        description: "Chemical, enzymatic, and mechanical exfoliation techniques using REGIMA professional products",
         estimatedTime: "60 minutes",
         order: 6
       },
       {
-        title: "Microdermabrasion",
-        description: "Microdermabrasion techniques and best practices",
+        title: "Extraction & Clarifying Procedures",
+        description: "Safe and effective extraction techniques for congested skin conditions",
         estimatedTime: "45 minutes",
         order: 7
       },
       {
-        title: "Anti-Aging Protocols",
-        description: "Advanced anti-aging treatment protocols",
+        title: "Facial Massage & Lymphatic Drainage",
+        description: "REGIMA signature massage techniques for enhanced product penetration and detoxification",
         estimatedTime: "60 minutes",
         order: 8
       },
       {
-        title: "Acne Treatments",
-        description: "Specialized protocols for acne and problematic skin",
+        title: "Treatment Masking Protocols",
+        description: "Application techniques and timing for REGIMA's professional treatment masks",
         estimatedTime: "45 minutes",
         order: 9
       },
       {
-        title: "Sensitive Skin Care",
-        description: "Techniques for treating sensitive and reactive skin",
-        estimatedTime: "45 minutes",
+        title: "Advanced Anti-Aging Treatments",
+        description: "Specialized REGIMA protocols for addressing fine lines, wrinkles, and loss of firmness",
+        estimatedTime: "60 minutes",
         order: 10
       },
       {
-        title: "Business Integration",
-        description: "Integrating REGIMA treatments into your business",
-        estimatedTime: "45 minutes",
+        title: "Acne & Problematic Skin Solutions",
+        description: "Targeted treatment protocols for managing acne, congestion, and oily skin conditions",
+        estimatedTime: "60 minutes",
         order: 11
       },
       {
-        title: "Final Assessment",
-        description: "Comprehensive assessment of your REGIMA training",
+        title: "Hyperpigmentation & Brightening",
+        description: "REGIMA approaches to treating hyperpigmentation, uneven skin tone, and sun damage",
         estimatedTime: "60 minutes",
         order: 12
+      },
+      {
+        title: "Sensitive & Reactive Skin Management",
+        description: "Gentle yet effective protocols for sensitive, reactive, and compromised skin barriers",
+        estimatedTime: "45 minutes",
+        order: 13
+      },
+      {
+        title: "Client Consultation & Treatment Planning",
+        description: "Professional consultation skills and creating customized REGIMA treatment plans",
+        estimatedTime: "60 minutes",
+        order: 14
+      },
+      {
+        title: "Home Care Recommendations",
+        description: "Guidelines for prescribing effective home care regimens with REGIMA retail products",
+        estimatedTime: "45 minutes",
+        order: 15
+      },
+      {
+        title: "REGIMA Business Implementation",
+        description: "Strategies for successfully integrating REGIMA treatments into your skincare business",
+        estimatedTime: "60 minutes",
+        order: 16
       }
     ];
     
@@ -376,9 +400,9 @@ async function initializeData() {
       await storage.createModule(moduleData);
     }
     
-    // Create lesson for module 5 (Advanced Facial Techniques)
+    // Create lesson for module 8 (Facial Massage & Lymphatic Drainage)
     const lesson = await storage.createLesson({
-      moduleId: 5,
+      moduleId: 8,
       title: "Lymphatic Drainage Massage",
       description: "This lesson covers advanced techniques for facial lymphatic drainage massage, a core component of REGIMA's signature facial treatments.",
       content: "Lymphatic drainage massage is an essential technique in advanced skincare, targeting the lymphatic system to reduce puffiness and detoxify the skin. REGIMA's approach combines traditional methods with proprietary movements for optimal results.",
