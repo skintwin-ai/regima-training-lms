@@ -1,4 +1,3 @@
-
 # REGIMA Training Portal Wiki
 
 Welcome to the REGIMA Training Portal Wiki. This knowledge base provides comprehensive information about REGIMA products, procedures, and skincare science.
@@ -9,6 +8,8 @@ Welcome to the REGIMA Training Portal Wiki. This knowledge base provides compreh
 - [User Guides](/wiki/guides/index.md) - How-to guides for using the platform
 - [Tutorials](/wiki/tutorials/index.md) - Step-by-step tutorials for platform features
 - [Product Wiki](https://www.regimazone.uk/) - Official REGIMA product website
+- [Products](/wiki/products/index.md) - Complete catalog of REGIMA skincare products
+
 
 ## Key Resources
 
