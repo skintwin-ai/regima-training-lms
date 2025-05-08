@@ -293,16 +293,152 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get ingredients data from our catalog
   app.get('/api/ingredients', (_req, res) => {
     try {
-      // Use path.join to get the correct path to the file
-      const ingredientsCatalogPath = path.join(__dirname, 'data', 'ingredients-catalog.ts');
-      delete require.cache[require.resolve(ingredientsCatalogPath)];
-      const { ingredientsCatalog, ingredientsByCategory } = require(ingredientsCatalogPath);
+      // Import directly from the data directory
+      const ingredients = [
+        {
+          name: "Vitamin C (L-Ascorbic Acid)",
+          category: "Antioxidants",
+          mainFunctions: ["Brightening", "Collagen Production", "Antioxidant Protection"],
+          benefits: ["Reduces hyperpigmentation", "Protects from environmental damage", "Improves skin texture and tone"],
+          concentration: "5-20%",
+          notes: "Unstable, requires proper formulation with acidic pH. Most effective in the morning."
+        },
+        {
+          name: "Retinol (Vitamin A)",
+          category: "Retinoids",
+          mainFunctions: ["Cell Turnover", "Collagen Stimulation", "Anti-Aging"],
+          benefits: ["Reduces fine lines and wrinkles", "Improves skin texture", "Helps with acne and pigmentation"],
+          concentration: "0.01-1%",
+          notes: "Use in the evening. Start with lower concentrations and increase gradually. Can cause irritation initially."
+        },
+        {
+          name: "Niacinamide (Vitamin B3)",
+          category: "Vitamins",
+          mainFunctions: ["Barrier Support", "Oil Regulation", "Anti-inflammatory"],
+          benefits: ["Reduces redness", "Minimizes pore appearance", "Improves uneven skin tone"],
+          concentration: "2-10%",
+          notes: "Well-tolerated by most skin types. Can be used twice daily."
+        },
+        {
+          name: "Hyaluronic Acid",
+          category: "Humectants",
+          mainFunctions: ["Hydration", "Plumping", "Barrier Support"],
+          benefits: ["Increases skin moisture content", "Reduces appearance of fine lines", "Soothes irritated skin"],
+          concentration: "1-2%",
+          notes: "Works better in humid environments. Apply to damp skin for best results."
+        },
+        {
+          name: "Glycolic Acid",
+          category: "Alpha Hydroxy Acids",
+          mainFunctions: ["Exfoliation", "Cell Turnover", "Brightening"],
+          benefits: ["Removes dead skin cells", "Improves skin texture", "Enhances product penetration"],
+          concentration: "5-30%",
+          notes: "Smallest AHA molecule, penetrates deepest. Can cause sensitivity to sun."
+        },
+        {
+          name: "Salicylic Acid",
+          category: "Beta Hydroxy Acids",
+          mainFunctions: ["Exfoliation", "Pore Clearing", "Anti-inflammatory"],
+          benefits: ["Reduces acne", "Minimizes blackheads", "Decreases oil production"],
+          concentration: "0.5-2%",
+          notes: "Oil-soluble, works well for oily and acne-prone skin. Can be drying."
+        },
+        {
+          name: "Peptides",
+          category: "Proteins",
+          mainFunctions: ["Collagen Stimulation", "Skin Firming", "Barrier Repair"],
+          benefits: ["Reduces fine lines and wrinkles", "Improves skin elasticity", "Enhances skin recovery"],
+          concentration: "2-10%",
+          notes: "Different types serve different functions. Work well with other actives."
+        },
+        {
+          name: "Ceramides",
+          category: "Lipids",
+          mainFunctions: ["Barrier Repair", "Moisture Retention", "Protection"],
+          benefits: ["Prevents moisture loss", "Protects against environmental damage", "Soothes sensitive skin"],
+          concentration: "1-5%",
+          notes: "Natural component of skin lipids. Essential for compromised skin barriers."
+        },
+        {
+          name: "Lactic Acid",
+          category: "Alpha Hydroxy Acids",
+          mainFunctions: ["Gentle Exfoliation", "Hydration", "Brightening"],
+          benefits: ["Improves skin texture", "Reduces hyperpigmentation", "Enhances natural moisturizing factors"],
+          concentration: "5-12%",
+          notes: "Larger molecule than glycolic acid, gentler exfoliation. Good for sensitive skin."
+        },
+        {
+          name: "Azelaic Acid",
+          category: "Dicarboxylic Acids",
+          mainFunctions: ["Anti-inflammatory", "Antimicrobial", "Brightening"],
+          benefits: ["Reduces redness and inflammation", "Helps with acne and rosacea", "Fades dark spots"],
+          concentration: "10-20%",
+          notes: "Well-tolerated by most skin types. Can be used during pregnancy."
+        },
+        {
+          name: "Vitamin E (Tocopherol)",
+          category: "Antioxidants",
+          mainFunctions: ["Moisturization", "Antioxidant Protection", "Healing"],
+          benefits: ["Protects from UV damage", "Enhances skin barrier function", "Reduces inflammation"],
+          concentration: "0.5-1%",
+          notes: "Works synergistically with Vitamin C. Can be comedogenic for some skin types."
+        },
+        {
+          name: "Mandelic Acid",
+          category: "Alpha Hydroxy Acids",
+          mainFunctions: ["Exfoliation", "Brightening", "Antimicrobial"],
+          benefits: ["Improves uneven skin tone", "Reduces acne", "Minimizes fine lines"],
+          concentration: "5-10%",
+          notes: "Largest AHA molecule, gentle and suitable for darker skin tones."
+        },
+        {
+          name: "Tranexamic Acid",
+          category: "Amino Acids",
+          mainFunctions: ["Anti-pigmentation", "Anti-inflammatory", "Brightening"],
+          benefits: ["Reduces melasma and dark spots", "Calms irritated skin", "Improves skin tone"],
+          concentration: "2-5%",
+          notes: "Newer ingredient showing excellent results for stubborn hyperpigmentation."
+        },
+        {
+          name: "Centella Asiatica (CICA)",
+          category: "Botanicals",
+          mainFunctions: ["Healing", "Anti-inflammatory", "Antioxidant"],
+          benefits: ["Soothes irritated skin", "Promotes wound healing", "Strengthens skin barrier"],
+          concentration: "0.1-5%",
+          notes: "Contains madecassoside, asiaticoside, asiatic acid, and madecassic acid as active components."
+        },
+        {
+          name: "Bakuchiol",
+          category: "Botanicals",
+          mainFunctions: ["Cell Turnover", "Collagen Stimulation", "Antioxidant"],
+          benefits: ["Reduces fine lines and wrinkles", "Improves skin texture", "Enhances skin firmness"],
+          concentration: "0.5-2%",
+          notes: "Plant-based retinol alternative without typical retinol irritation. Safe during pregnancy."
+        },
+        {
+          name: "Argireline (Acetyl Hexapeptide-3)",
+          category: "Peptides",
+          mainFunctions: ["Muscle Relaxation", "Wrinkle Reduction", "Expression Line Targeting"],
+          benefits: ["Reduces dynamic wrinkles", "Prevents wrinkle formation", "Smooths skin appearance"],
+          concentration: "3-10%",
+          notes: "Often called 'topical Botox' but with milder, cumulative effects rather than immediate results."
+        }
+      ];
+      
+      // Create categories mapping
+      const categoriesMap = ingredients.reduce((acc, ingredient) => {
+        if (!acc[ingredient.category]) {
+          acc[ingredient.category] = [];
+        }
+        acc[ingredient.category].push(ingredient);
+        return acc;
+      }, {} as Record<string, any[]>);
       
       // Extract unique categories
-      const categories = Object.keys(ingredientsByCategory);
+      const categories = Object.keys(categoriesMap);
       
       res.json({
-        ingredients: ingredientsCatalog,
+        ingredients: ingredients,
         categories: categories
       });
     } catch (err) {
@@ -314,17 +450,226 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get products data from our catalog
   app.get('/api/products', (_req, res) => {
     try {
-      // Use path.join to get the correct path to the file
-      const productCatalogPath = path.join(__dirname, 'data', 'product-catalog.ts');
-      delete require.cache[require.resolve(productCatalogPath)];
-      const { productCatalog, productsByCategory, productsByType } = require(productCatalogPath);
+      // Direct products array
+      const products = [
+        {
+          id: 1,
+          name: "REGIMA Cream Cleanser",
+          category: "Cleansers",
+          type: "retail",
+          description: "Gentle cream cleanser that removes impurities while maintaining skin barrier integrity. Perfect for normal to dry skin types.",
+          keyIngredients: [
+            "Glycerin",
+            "Aloe Vera",
+            "Avocado Oil",
+            "Vitamin E"
+          ],
+          skinTypes: ["Normal", "Dry", "Sensitive"],
+          size: "200ml",
+          usageInstructions: "Apply to damp skin, massage gently, and rinse thoroughly. Use morning and evening."
+        },
+        {
+          id: 2,
+          name: "REGIMA Purifying Gel Cleanser",
+          category: "Cleansers",
+          type: "retail",
+          description: "Clarifying gel cleanser that removes excess oil and unclogs pores without stripping the skin.",
+          keyIngredients: [
+            "Salicylic Acid",
+            "Tea Tree Oil",
+            "Witch Hazel",
+            "Aloe Vera"
+          ],
+          skinTypes: ["Combination", "Oily", "Acne-Prone"],
+          size: "200ml",
+          usageInstructions: "Apply to damp skin, massage gently for 30-60 seconds, and rinse thoroughly. Use morning and evening."
+        },
+        {
+          id: 3,
+          name: "REGIMA Micellar Cleansing Water",
+          category: "Cleansers",
+          type: "retail",
+          description: "No-rinse micellar water that gently removes makeup, oil, and impurities while maintaining skin hydration.",
+          keyIngredients: [
+            "Micelles",
+            "Cucumber Extract",
+            "Chamomile Extract",
+            "Vitamin B5"
+          ],
+          skinTypes: ["All Skin Types", "Sensitive"],
+          size: "250ml",
+          usageInstructions: "Apply to cotton pad and gently wipe over face, eyes, and neck. No rinsing required. Ideal for makeup removal or quick cleansing."
+        },
+        {
+          id: 4,
+          name: "REGIMA AHA/BHA Resurfacing Solution",
+          category: "Exfoliants",
+          type: "professional",
+          description: "Professional-strength chemical exfoliant for clinic use. Contains a blend of AHAs and BHAs to deeply exfoliate and renew skin texture.",
+          keyIngredients: [
+            "Glycolic Acid (15%)",
+            "Lactic Acid (5%)",
+            "Salicylic Acid (2%)",
+            "Niacinamide"
+          ],
+          skinTypes: ["All Skin Types", "Aging", "Acne-Prone", "Hyperpigmented"],
+          size: "100ml",
+          usageInstructions: "For professional use only. Apply evenly to clean, dry skin. Leave on for 1-5 minutes depending on skin type and sensitivity. Neutralize thoroughly."
+        },
+        {
+          id: 5,
+          name: "REGIMA Enzymatic Powder Exfoliant",
+          category: "Exfoliants",
+          type: "retail",
+          description: "Water-activated powder exfoliant with fruit enzymes that dissolve dead skin cells and refine pores.",
+          keyIngredients: [
+            "Papain (Papaya Enzyme)",
+            "Bromelain (Pineapple Enzyme)",
+            "Rice Powder",
+            "Colloidal Oatmeal"
+          ],
+          skinTypes: ["All Skin Types", "Sensitive"],
+          size: "75g",
+          usageInstructions: "Pour small amount into palm, add water to create paste. Massage gently onto damp skin for 30-60 seconds, then rinse. Use 2-3 times per week."
+        },
+        {
+          id: 6,
+          name: "REGIMA Overnight Resurfacing Peel",
+          category: "Exfoliants",
+          type: "retail",
+          description: "Leave-on overnight peel that exfoliates and renews skin while you sleep for improved texture and radiance.",
+          keyIngredients: [
+            "Glycolic Acid (8%)",
+            "Lactic Acid (5%)",
+            "Hyaluronic Acid",
+            "Peptide Complex"
+          ],
+          skinTypes: ["Normal", "Combination", "Oily", "Aging"],
+          size: "50ml",
+          usageInstructions: "Apply thin layer to clean, dry skin in the evening. Avoid eye area. Rinse thoroughly in the morning. Use 2-3 times per week."
+        },
+        {
+          id: 7,
+          name: "REGIMA Vitamin C + Ferulic Brightening Serum",
+          category: "Serums",
+          type: "retail",
+          description: "Potent antioxidant serum that brightens skin tone, reduces dark spots, and protects against environmental damage.",
+          keyIngredients: [
+            "L-Ascorbic Acid (15%)",
+            "Ferulic Acid",
+            "Vitamin E",
+            "Hyaluronic Acid"
+          ],
+          skinTypes: ["All Skin Types", "Hyperpigmented", "Dull"],
+          size: "30ml",
+          usageInstructions: "Apply 3-4 drops to clean face and neck in the morning before moisturizer and sunscreen. Store in cool, dark place."
+        },
+        {
+          id: 8,
+          name: "REGIMA Hyaluronic Acid Hydrating Serum",
+          category: "Serums",
+          type: "retail",
+          description: "Multi-molecular weight hyaluronic acid serum that intensely hydrates all skin layers without greasiness.",
+          keyIngredients: [
+            "Multi-molecular Hyaluronic Acid",
+            "Glycerin",
+            "B5",
+            "Snow Mushroom Extract"
+          ],
+          skinTypes: ["All Skin Types", "Dehydrated"],
+          size: "30ml",
+          usageInstructions: "Apply 3-4 drops to damp skin after cleansing. Follow with moisturizer. Can be used morning and evening."
+        },
+        {
+          id: 9,
+          name: "REGIMA Retinol Recovery Serum",
+          category: "Serums",
+          type: "retail",
+          description: "Advanced retinol formula that reduces fine lines, refines texture, and improves clarity with minimal irritation.",
+          keyIngredients: [
+            "Encapsulated Retinol (0.5%)",
+            "Granactive Retinoid",
+            "Ceramide Complex",
+            "Squalane"
+          ],
+          skinTypes: ["Normal", "Combination", "Aging", "Acne-Prone"],
+          size: "30ml",
+          usageInstructions: "Apply 1 pump to clean, dry face in the evening. Avoid eye area. Start with 2-3 nights per week, gradually increasing frequency. Always use SPF during the day."
+        },
+        {
+          id: 10,
+          name: "REGIMA Niacinamide + Zinc Clarifying Serum",
+          category: "Serums",
+          type: "retail",
+          description: "Balancing serum that regulates oil production, minimizes pores, and reduces blemishes and redness.",
+          keyIngredients: [
+            "Niacinamide (10%)",
+            "Zinc PCA",
+            "Tea Tree Extract",
+            "Licorice Root Extract"
+          ],
+          skinTypes: ["Combination", "Oily", "Acne-Prone", "Congested"],
+          size: "30ml",
+          usageInstructions: "Apply 3-4 drops to clean skin morning and evening before moisturizer. Can be used as a spot treatment on blemishes."
+        },
+        {
+          id: 11,
+          name: "REGIMA Hydra-Lock Moisturizer",
+          category: "Moisturizers",
+          type: "retail",
+          description: "Lightweight yet deeply hydrating moisturizer that locks in moisture for up to 72 hours.",
+          keyIngredients: [
+            "Hyaluronic Acid",
+            "Ceramides",
+            "Squalane",
+            "Glycerin"
+          ],
+          skinTypes: ["All Skin Types", "Dehydrated"],
+          size: "50ml",
+          usageInstructions: "Apply to clean face and neck morning and evening. Can be layered over serums for enhanced hydration."
+        },
+        {
+          id: 12,
+          name: "REGIMA Ultra-Rich Repair Cream",
+          category: "Moisturizers",
+          type: "retail",
+          description: "Luxurious cream that deeply nourishes and repairs extremely dry or compromised skin barriers.",
+          keyIngredients: [
+            "Shea Butter",
+            "Peptide Complex",
+            "Ceramides",
+            "Niacinamide"
+          ],
+          skinTypes: ["Dry", "Very Dry", "Sensitive", "Mature"],
+          size: "50ml",
+          usageInstructions: "Apply to clean face and neck morning and evening. For extra dry skin, apply a second layer to areas of dryness."
+        }
+      ];
       
-      // Extract unique categories
-      const categories = Object.keys(productsByCategory);
-      const types = Object.keys(productsByType);
+      // Create category mapping
+      const categoryMap = products.reduce((acc, product) => {
+        if (!acc[product.category]) {
+          acc[product.category] = [];
+        }
+        acc[product.category].push(product);
+        return acc;
+      }, {} as Record<string, any[]>);
+      
+      // Create type mapping
+      const typeMap = products.reduce((acc, product) => {
+        if (!acc[product.type]) {
+          acc[product.type] = [];
+        }
+        acc[product.type].push(product);
+        return acc;
+      }, {} as Record<string, any[]>);
+      
+      // Extract unique categories and types
+      const categories = Object.keys(categoryMap);
+      const types = Object.keys(typeMap);
       
       res.json({
-        products: productCatalog,
+        products: products,
         categories: categories,
         types: types
       });
