@@ -24,7 +24,8 @@ import {
   Menu,
   Home,
   Book,
-  Beaker
+  Beaker,
+  FileText
 } from "lucide-react";
 import { DEFAULT_USER_AVATAR } from "@/lib/constants";
 import { useState } from "react";

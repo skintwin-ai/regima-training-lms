@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { MainLayout } from "@/components/layout/main-layout";
+import { MainLayout } from "../components/layout/main-layout";
 import { Separator } from "@/components/ui/separator";
 import { User } from "@/lib/types";
 import { getQueryFn } from "@/lib/queryClient";

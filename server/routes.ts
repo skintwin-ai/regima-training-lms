@@ -288,6 +288,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: 'Failed to fetch certificates' });
     }
   });
+  
+  // Get ingredients data from our catalog
+  app.get('/api/ingredients', (_req, res) => {
+    try {
+      const { ingredientsCatalog, ingredientsByCategory } = require('./data/ingredients-catalog');
+      
+      // Extract unique categories
+      const categories = Object.keys(ingredientsByCategory);
+      
+      res.json({
+        ingredients: ingredientsCatalog,
+        categories: categories
+      });
+    } catch (err) {
+      console.error("Error fetching ingredients data:", err);
+      res.status(500).json({ message: "Error fetching ingredients data" });
+    }
+  });
 
   const httpServer = createServer(app);
   return httpServer;
