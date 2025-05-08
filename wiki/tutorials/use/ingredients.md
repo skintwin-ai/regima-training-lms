@@ -1,44 +1,39 @@
 
-# Exploring Ingredients Tutorial
+# Using the Ingredients Reference
 
-## Introduction
-
-The REGIMA Ingredients Reference provides a comprehensive catalog of skincare ingredients. This tutorial will guide you through searching, filtering, and learning about the various active ingredients used in REGIMA products.
+The Ingredients Reference is a powerful tool for exploring the active ingredients in REGIMA skincare products. This tutorial will guide you through effectively using this feature.
 
 ## Accessing the Ingredients Reference
 
-1. Log in to your REGIMA Training Platform account
-2. Click "Ingredients" in the main navigation sidebar
-3. The ingredients reference page will load
+1. Log in to your REGIMA Training Portal account
+2. Click on "Ingredients" in the main navigation menu
+3. The Ingredients Reference page will load showing all available ingredients
 
-## Understanding the Ingredients Interface
+## Navigating the Interface
 
-![Ingredients Interface](https://example.com/ingredients-interface.jpg)
+The Ingredients Reference has three main sections:
 
-The ingredients reference has several key areas:
+1. **Search Bar** - Located at the top of the page
+2. **Category Filter** - Located on the left side of the page
+3. **Ingredients List** - Occupies the main area of the page
 
-1. **Search Bar**: Located at the top for finding specific ingredients
-2. **Category Filter**: On the left sidebar for filtering by type
-3. **Ingredients List**: The main content area showing ingredient entries
-4. **Detailed View**: Expanded information when you click on an ingredient
+## Using the Search Function
 
-## Searching for Ingredients
+To find specific ingredients:
 
-To find a specific ingredient:
+1. Click the search bar at the top of the page
+2. Type an ingredient name, function, or category
+3. The list will automatically filter as you type
+4. Press Enter to complete your search
 
-1. Click in the search bar at the top of the page
-2. Type the ingredient name (e.g., "Hyaluronic Acid") or a function (e.g., "exfoliant")
-3. Results will filter as you type
-4. Click on any search result to view details
-
-**Practice**: Search for an ingredient mentioned in your recent lesson.
+**Practice**: Search for "Vitamin C" and note how many results appear.
 
 ## Filtering by Category
 
 To browse ingredients by type:
 
 1. Locate the category sidebar on the left side of the screen
-2. Click on a category (e.g., "REGIMA Proprietary Actives" or "Exfoliants")
+2. Click on a category (e.g., "Antioxidants" or "Exfoliants")
 3. The ingredient list will update to show only ingredients in that category
 4. Notice the filter indicator showing your active filter
 5. To clear filters, click the "X" on the filter indicator
@@ -99,6 +94,24 @@ For effective learning:
 4. Learn which ingredients work well together
 5. Understand contraindications and sensitivities
 
+## Mobile Usage
+
+The ingredients reference works on mobile devices:
+
+1. Access the portal from your mobile browser
+2. Navigate to the Ingredients section
+3. Use the hamburger menu to access filters
+4. Tap ingredients to expand/collapse
+5. Use portrait orientation for optimal viewing
+
 ## Next Steps
 
-Now that you know how to use the Ingredients Reference, you can explore the Products section to understand how these ingredients are formulated into REGIMA skincare solutions.
+Now that you know how to use the Ingredients Reference, explore our detailed ingredient category pages:
+
+- [Antioxidants](/wiki/ingredients/antioxidants.md)
+- [Vitamin C](/wiki/ingredients/vitamin-c.md)
+- [Peptides](/wiki/ingredients/peptides.md)
+- [Exfoliants](/wiki/ingredients/exfoliants.md)
+- [Hydrators](/wiki/ingredients/hydrators.md)
+
+Or proceed to the [Products section](/wiki/tutorials/use/products.md) to understand how these ingredients are formulated into REGIMA skincare solutions.
