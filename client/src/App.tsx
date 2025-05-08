@@ -7,6 +7,7 @@ import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
 import Lesson from "@/pages/lesson";
 import Modules from "@/pages/modules";
+import Ingredients from "@/pages/ingredients";
 import { useState, useEffect } from "react";
 import { apiRequest } from "./lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -98,6 +99,9 @@ function Router() {
       </Route>
       <Route path="/lesson/:id">
         {(params) => <Lesson lessonId={parseInt(params.id)} user={user} onLogin={handleLogin} onLogout={handleLogout} />}
+      </Route>
+      <Route path="/ingredients">
+        <Ingredients user={user} onLogin={handleLogin} onLogout={handleLogout} />
       </Route>
       <Route component={NotFound} />
     </Switch>
