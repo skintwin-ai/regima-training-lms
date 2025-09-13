@@ -39,20 +39,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/auth/login', async (req, res) => {
     try {
       const { username, password } = req.body;
-      
+
       if (!username || !password) {
         return res.status(400).json({ message: 'Username and password are required' });
       }
-      
+
       const user = await storage.getUserByUsername(username);
-      
+
       if (!user || user.password !== password) {
         return res.status(401).json({ message: 'Invalid credentials' });
       }
-      
+
       // Store user in session
       req.session.userId = user.id;
-      
+
       return res.json({
         id: user.id,
         username: user.username,
@@ -64,7 +64,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(500).json({ message: 'Internal server error' });
     }
   });
-  
+
   app.post('/api/auth/logout', (req, res) => {
     req.session.destroy((err) => {
       if (err) {
@@ -73,21 +73,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ message: 'Logged out successfully' });
     });
   });
-  
+
   app.get('/api/auth/me', async (req, res) => {
     try {
       const userId = req.session.userId;
-      
+
       if (!userId) {
         return res.status(401).json({ message: 'Not authenticated' });
       }
-      
+
       const user = await storage.getUser(userId);
-      
+
       if (!user) {
         return res.status(404).json({ message: 'User not found' });
       }
-      
+
       return res.json({
         id: user.id,
         username: user.username,
@@ -110,23 +110,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: 'Failed to fetch modules' });
     }
   });
-  
+
   app.get('/api/modules/:id', async (req, res) => {
     try {
       const moduleId = parseInt(req.params.id);
-      
+
       if (isNaN(moduleId)) {
         return res.status(400).json({ message: 'Invalid module ID' });
       }
-      
+
       const module = await storage.getModule(moduleId);
-      
+
       if (!module) {
         return res.status(404).json({ message: 'Module not found' });
       }
-      
+
       const lessons = await storage.getLessonsByModuleId(moduleId);
-      
+
       res.json({
         ...module,
         lessons
@@ -141,33 +141,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/lessons/:id', async (req, res) => {
     try {
       const lessonId = parseInt(req.params.id);
-      
+
       if (isNaN(lessonId)) {
         return res.status(400).json({ message: 'Invalid lesson ID' });
       }
-      
+
       const lesson = await storage.getLesson(lessonId);
-      
+
       if (!lesson) {
         return res.status(404).json({ message: 'Lesson not found' });
       }
-      
+
       // Get related data
       const steps = await storage.getStepsByLessonId(lessonId);
       const resources = await storage.getResourcesByLessonId(lessonId);
       const quiz = await storage.getQuizByLessonId(lessonId);
-      
+
       // Get user-specific data if logged in
       let userProgress = null;
       let userNote = null;
-      
+
       if (req.session.userId) {
         const userId = req.session.userId;
         const userProgresses = await storage.getUserProgressByUserId(userId);
         userProgress = userProgresses.find(p => p.lessonId === lessonId);
         userNote = await storage.getUserNotesByLessonAndUserId(lessonId, userId);
       }
-      
+
       res.json({
         ...lesson,
         steps,
@@ -188,12 +188,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!req.session.userId) {
         return res.status(401).json({ message: 'Not authenticated' });
       }
-      
+
       const progressData = insertUserProgressSchema.parse({
         ...req.body,
         userId: req.session.userId
       });
-      
+
       const userProgress = await storage.updateUserProgress(progressData);
       res.json(userProgress);
     } catch (error) {
@@ -201,13 +201,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: 'Failed to update progress' });
     }
   });
-  
+
   app.get('/api/progress/summary', async (req, res) => {
     try {
       if (!req.session.userId) {
         return res.status(401).json({ message: 'Not authenticated' });
       }
-      
+
       const summary = await storage.getUserProgressSummary(req.session.userId);
       res.json(summary);
     } catch (error) {
@@ -222,12 +222,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!req.session.userId) {
         return res.status(401).json({ message: 'Not authenticated' });
       }
-      
+
       const noteData = insertUserNoteSchema.parse({
         ...req.body,
         userId: req.session.userId
       });
-      
+
       const note = await storage.createOrUpdateUserNote(noteData);
       res.json(note);
     } catch (error) {
@@ -242,12 +242,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!req.session.userId) {
         return res.status(401).json({ message: 'Not authenticated' });
       }
-      
+
       const feedbackData = insertLessonFeedbackSchema.parse({
         ...req.body,
         userId: req.session.userId
       });
-      
+
       const feedback = await storage.createLessonFeedback(feedbackData);
       res.json(feedback);
     } catch (error) {
@@ -262,12 +262,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!req.session.userId) {
         return res.status(401).json({ message: 'Not authenticated' });
       }
-      
+
       const certificateData = insertCertificateSchema.parse({
         ...req.body,
         userId: req.session.userId
       });
-      
+
       const certificate = await storage.createCertificate(certificateData);
       res.json(certificate);
     } catch (error) {
@@ -275,13 +275,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: 'Failed to create certificate' });
     }
   });
-  
+
   app.get('/api/certificates', async (req, res) => {
     try {
       if (!req.session.userId) {
         return res.status(401).json({ message: 'Not authenticated' });
       }
-      
+
       const certificates = await storage.getUserCertificates(req.session.userId);
       res.json(certificates);
     } catch (error) {
@@ -289,142 +289,76 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: 'Failed to fetch certificates' });
     }
   });
-  
-  // Get ingredients data from our catalog
-  app.get('/api/ingredients', (_req, res) => {
+
+  // Image management API
+  app.post("/api/images/download-ingredient-images", async (req, res) => {
     try {
-      // Import directly from the data directory
-      const ingredients = [
-        {
-          name: "REGIMA Complex-C",
-          category: "REGIMA Proprietary Actives",
-          mainFunctions: ["Brightening", "Collagen Production", "Antioxidant Protection"],
-          benefits: ["Reduces hyperpigmentation", "Protects from environmental damage", "Improves skin texture and tone"],
-          concentration: "10-15%",
-          notes: "REGIMA's stabilized Vitamin C complex with 3 forms of Vitamin C for enhanced penetration and stability."
-        },
-        {
-          name: "REGIMA Retinol-SR",
-          category: "REGIMA Proprietary Actives",
-          mainFunctions: ["Cell Turnover", "Collagen Stimulation", "Anti-Aging"],
-          benefits: ["Reduces fine lines and wrinkles", "Improves skin texture", "Helps with acne and pigmentation"],
-          concentration: "0.3-1.0%",
-          notes: "REGIMA's sustained-release retinol system minimizes irritation while maximizing results."
-        },
-        {
-          name: "REGIMA NiaPlus",
-          category: "REGIMA Proprietary Actives",
-          mainFunctions: ["Barrier Support", "Oil Regulation", "Anti-inflammatory"],
-          benefits: ["Reduces redness", "Minimizes pore appearance", "Improves uneven skin tone"],
-          concentration: "5-10%",
-          notes: "REGIMA's enhanced niacinamide complex with zinc and panthenol for superior results."
-        },
-        {
-          name: "REGIMA HydraMatrix",
-          category: "REGIMA Proprietary Actives",
-          mainFunctions: ["Hydration", "Plumping", "Barrier Support"],
-          benefits: ["Increases skin moisture content", "Reduces appearance of fine lines", "Soothes irritated skin"],
-          concentration: "2-5%",
-          notes: "REGIMA's multi-molecular hyaluronic acid complex with snow mushroom extract for deep hydration."
-        },
-        {
-          name: "REGIMA AHA Complex",
-          category: "REGIMA Exfoliants",
-          mainFunctions: ["Exfoliation", "Cell Turnover", "Brightening"],
-          benefits: ["Removes dead skin cells", "Improves skin texture", "Enhances product penetration"],
-          concentration: "8-25%",
-          notes: "REGIMA's blend of glycolic, lactic, and mandelic acids for comprehensive exfoliation."
-        },
-        {
-          name: "REGIMA BHA Solution",
-          category: "REGIMA Exfoliants",
-          mainFunctions: ["Exfoliation", "Pore Clearing", "Anti-inflammatory"],
-          benefits: ["Reduces acne", "Minimizes blackheads", "Decreases oil production"],
-          concentration: "1-2%",
-          notes: "REGIMA's salicylic acid complex with anti-inflammatory botanicals to clear pores without irritation."
-        },
-        {
-          name: "REGIMA Peptide Fusion",
-          category: "REGIMA Anti-Aging Actives",
-          mainFunctions: ["Collagen Stimulation", "Skin Firming", "Barrier Repair"],
-          benefits: ["Reduces fine lines and wrinkles", "Improves skin elasticity", "Enhances skin recovery"],
-          concentration: "3-8%",
-          notes: "REGIMA's proprietary blend of signal, carrier, and neurotransmitter-inhibiting peptides."
-        },
-        {
-          name: "REGIMA Ceramide Complex",
-          category: "REGIMA Barrier Support",
-          mainFunctions: ["Barrier Repair", "Moisture Retention", "Protection"],
-          benefits: ["Prevents moisture loss", "Protects against environmental damage", "Soothes sensitive skin"],
-          concentration: "2-5%",
-          notes: "REGIMA's blend of ceramides, fatty acids, and cholesterol in biomimetic ratios for optimal barrier repair."
-        },
-        {
-          name: "REGIMA Enzyme Blend",
-          category: "REGIMA Exfoliants",
-          mainFunctions: ["Gentle Exfoliation", "Brightening", "Skin Renewal"],
-          benefits: ["Dissolves dead skin cells", "Evens skin tone", "Refines skin texture"],
-          concentration: "3-8%",
-          notes: "REGIMA's exclusive blend of papain, bromelain, and pumpkin enzymes for gentle yet effective exfoliation."
-        },
-        {
-          name: "REGIMA Tranexamide Solution",
-          category: "REGIMA Brightening Actives",
-          mainFunctions: ["Anti-pigmentation", "Anti-inflammatory", "Brightening"],
-          benefits: ["Reduces melasma and dark spots", "Calms irritated skin", "Improves skin tone"],
-          concentration: "3-5%",
-          notes: "REGIMA's advanced tranexamic acid complex with arbutin and kojic acid for comprehensive brightness."
-        },
-        {
-          name: "REGIMA CICA Repair",
-          category: "REGIMA Soothing Actives",
-          mainFunctions: ["Healing", "Anti-inflammatory", "Antioxidant"],
-          benefits: ["Soothes irritated skin", "Promotes wound healing", "Strengthens skin barrier"],
-          concentration: "2-5%",
-          notes: "REGIMA's Centella Asiatica complex with madecassoside and madecassic acid for superior healing."
-        },
-        {
-          name: "REGIMA Plant Retinol Alternative",
-          category: "REGIMA Anti-Aging Actives",
-          mainFunctions: ["Cell Turnover", "Collagen Stimulation", "Antioxidant"],
-          benefits: ["Reduces fine lines and wrinkles", "Improves skin texture", "Enhances skin firmness"],
-          concentration: "1-3%",
-          notes: "REGIMA's bakuchiol complex for retinol-like results without irritation, suitable during pregnancy."
-        },
-        {
-          name: "REGIMA Argirelox",
-          category: "REGIMA Anti-Aging Actives",
-          mainFunctions: ["Muscle Relaxation", "Wrinkle Reduction", "Expression Line Targeting"],
-          benefits: ["Reduces dynamic wrinkles", "Prevents wrinkle formation", "Smooths skin appearance"],
-          concentration: "5-10%",
-          notes: "REGIMA's advanced peptide blend for targeted relaxation of expression lines and wrinkles."
-        },
-        {
-          name: "REGIMA Mineral UV Shield",
-          category: "REGIMA Sun Protection",
-          mainFunctions: ["UV Protection", "Antioxidant Defense", "Environmental Shielding"],
-          benefits: ["Blocks UVA and UVB rays", "Prevents premature aging", "Protects against blue light"],
-          concentration: "15-25% Zinc Oxide",
-          notes: "REGIMA's non-nano zinc oxide formulation with antioxidants for comprehensive protection."
-        },
-        {
-          name: "REGIMA Lymphatic Boost Complex",
-          category: "REGIMA Treatment Actives",
-          mainFunctions: ["Drainage Enhancement", "Detoxification", "Circulation Stimulation"],
-          benefits: ["Reduces puffiness", "Detoxifies tissue", "Enhances product penetration"],
-          concentration: "4-8%",
-          notes: "REGIMA's blend of arnica, cypress, and juniper berry essential oils for professional lymphatic massage."
-        },
-        {
-          name: "REGIMA Growth Factor Serum",
-          category: "REGIMA Post-Treatment Recovery",
-          mainFunctions: ["Cellular Renewal", "Wound Healing", "Barrier Restoration"],
-          benefits: ["Accelerates healing", "Enhances collagen production", "Minimizes downtime after procedures"],
-          concentration: "2-5%",
-          notes: "REGIMA's advanced growth factor and peptide complex for post-treatment repair and recovery."
+      const { ImageManager } = await import('./utils/image-manager');
+      const imageManager = ImageManager.getInstance();
+
+      // Import the ingredients catalog
+      const { ingredientsCatalog } = await import('./data/ingredients-catalog');
+
+      // Download all ingredient images
+      console.log('Starting bulk download of ingredient images...');
+      const urlMap = await imageManager.downloadIngredientImages(ingredientsCatalog);
+
+      const stats = imageManager.getStats();
+
+      res.json({
+        success: true,
+        message: `Downloaded ${urlMap.size} ingredient images`,
+        urlMap: Object.fromEntries(urlMap),
+        stats
+      });
+    } catch (error) {
+      console.error('Failed to download ingredient images:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to download images',
+        details: error.message
+      });
+    }
+  });
+
+  app.get("/api/images/stats", async (req, res) => {
+    try {
+      const { ImageManager } = await import('./utils/image-manager');
+      const imageManager = ImageManager.getInstance();
+      const stats = imageManager.getStats();
+      res.json(stats);
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to get image stats' });
+    }
+  });
+
+  // Ingredients API
+  app.get("/api/ingredients", async (req, res) => {
+    try {
+      // Import the ingredients catalog
+      const { ingredientsCatalog } = await import('./data/ingredients-catalog');
+      const { ImageManager } = await import('./utils/image-manager');
+      const imageManager = ImageManager.getInstance();
+
+      // Map images to local URLs where available
+      const ingredientsWithLocalImages = ingredientsCatalog.map(ingredient => {
+        let imageUrl = ingredient.imageUrl;
+
+        if (ingredient.imageUrl) {
+          const asset = imageManager.findByOriginalUrl(ingredient.imageUrl);
+          if (asset) {
+            imageUrl = imageManager.getLocalUrl(asset.id) || ingredient.imageUrl;
+          }
         }
-      ];
-      
+
+        return {
+          ...ingredient,
+          imageUrl
+        };
+      });
+
+      const ingredients = ingredientsWithLocalImages;
+
       // Create categories mapping
       const categoriesMap = ingredients.reduce((acc, ingredient) => {
         if (!acc[ingredient.category]) {
@@ -433,10 +367,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         acc[ingredient.category].push(ingredient);
         return acc;
       }, {} as Record<string, any[]>);
-      
+
       // Extract unique categories
       const categories = Object.keys(categoriesMap);
-      
+
       res.json({
         ingredients: ingredients,
         categories: categories
@@ -446,7 +380,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Error fetching ingredients data" });
     }
   });
-  
+
   // Get products data from our catalog
   app.get('/api/products', (_req, res) => {
     try {
@@ -645,7 +579,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           usageInstructions: "Apply to clean face and neck morning and evening. For extra dry skin, apply a second layer to areas of dryness."
         }
       ];
-      
+
       // Create category mapping
       const categoryMap = products.reduce((acc, product) => {
         if (!acc[product.category]) {
@@ -654,7 +588,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         acc[product.category].push(product);
         return acc;
       }, {} as Record<string, any[]>);
-      
+
       // Create type mapping
       const typeMap = products.reduce((acc, product) => {
         if (!acc[product.type]) {
@@ -663,11 +597,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         acc[product.type].push(product);
         return acc;
       }, {} as Record<string, any[]>);
-      
+
       // Extract unique categories and types
       const categories = Object.keys(categoryMap);
       const types = Object.keys(typeMap);
-      
+
       res.json({
         products: products,
         categories: categories,
@@ -785,11 +719,11 @@ async function initializeData() {
         order: 16
       }
     ];
-    
+
     for (const moduleData of modules) {
       await storage.createModule(moduleData);
     }
-    
+
     // Create lesson for module 8 (Facial Massage & Lymphatic Drainage)
     const lesson = await storage.createLesson({
       moduleId: 8,
@@ -799,7 +733,7 @@ async function initializeData() {
       videoUrl: "https://images.unsplash.com/photo-1595624871930-6e8537998592",
       order: 4
     });
-    
+
     // Create steps for the lesson
     const steps = [
       {
@@ -839,11 +773,11 @@ async function initializeData() {
         order: 6
       }
     ];
-    
+
     for (const stepData of steps) {
       await storage.createStep(stepData);
     }
-    
+
     // Create resources for the lesson
     const resources = [
       {
@@ -875,11 +809,11 @@ async function initializeData() {
         fileSize: ""
       }
     ];
-    
+
     for (const resourceData of resources) {
       await storage.createResource(resourceData);
     }
-    
+
     // Create product with detailed ingredient information
     const product = await storage.createProduct({
       name: "REGIMA Lymphatic Boost Oil",
@@ -893,7 +827,7 @@ async function initializeData() {
         "Grapeseed Oil - Lightweight carrier; non-comedogenic; rich in linoleic acid"
       ]
     });
-    
+
     // Create quiz for the lesson
     const quiz = await storage.createQuiz({
       lessonId: lesson.id,
@@ -933,7 +867,7 @@ async function initializeData() {
         }
       ]
     });
-    
+
   } catch (error) {
     console.error("Error initializing data:", error);
   }
