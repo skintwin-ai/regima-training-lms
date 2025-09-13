@@ -301,6 +301,168 @@ export const ingredientsCatalog: IngredientInfo[] = [
     ],
     concentration: "1-5% extract",
     notes: "Natural alternative to hyaluronic acid with smaller particle size for deeper penetration. Used in REGIMA's premium hydrating formulations."
+  },
+  
+  // Additional Key Ingredients
+  {
+    name: "Kojic Acid",
+    category: "Brightening Agent",
+    mainFunctions: [
+      "Inhibits tyrosinase enzyme",
+      "Reduces melanin production",
+      "Antimicrobial properties"
+    ],
+    benefits: [
+      "Fades dark spots and melasma",
+      "Evens skin tone",
+      "Prevents new pigmentation"
+    ],
+    concentration: "1-4%",
+    notes: "Derived from fungi, particularly effective for stubborn pigmentation. REGIMA uses stabilized kojic acid in professional brightening treatments."
+  },
+  {
+    name: "Arbutin",
+    category: "Brightening Agent",
+    mainFunctions: [
+      "Tyrosinase inhibition",
+      "Melanin synthesis reduction",
+      "Gentle brightening action"
+    ],
+    benefits: [
+      "Gradual pigmentation reduction",
+      "Suitable for sensitive skin",
+      "Even skin tone improvement"
+    ],
+    concentration: "2-7%",
+    notes: "Natural derivative from bearberry plants. REGIMA uses both alpha and beta arbutin forms for comprehensive brightening effects."
+  },
+  {
+    name: "Ferulic Acid",
+    category: "Antioxidant",
+    mainFunctions: [
+      "Stabilizes vitamin C",
+      "UV protection enhancement",
+      "Anti-inflammatory action"
+    ],
+    benefits: [
+      "Boosts vitamin C efficacy",
+      "Protects against environmental damage",
+      "Reduces skin irritation"
+    ],
+    concentration: "0.5-1%",
+    notes: "Plant-derived antioxidant that significantly enhances the stability and effectiveness of vitamin C and E in REGIMA formulations."
+  },
+  {
+    name: "Retinol",
+    category: "Vitamin A Derivative",
+    mainFunctions: [
+      "Accelerates cell turnover",
+      "Stimulates collagen production",
+      "Normalizes keratinization"
+    ],
+    benefits: [
+      "Reduces fine lines and wrinkles",
+      "Improves skin texture",
+      "Minimizes pore appearance"
+    ],
+    concentration: "0.1-1%",
+    notes: "Gold standard anti-aging ingredient. REGIMA uses encapsulated retinol for enhanced stability and reduced irritation in professional treatments."
+  },
+  {
+    name: "Bakuchiol",
+    category: "Natural Retinol Alternative",
+    mainFunctions: [
+      "Stimulates collagen production",
+      "Antioxidant protection",
+      "Anti-inflammatory action"
+    ],
+    benefits: [
+      "Reduces signs of aging",
+      "Suitable for sensitive skin",
+      "Safe for pregnancy"
+    ],
+    concentration: "0.5-2%",
+    notes: "Plant-based alternative to retinol derived from Psoralea corylifolia. REGIMA uses this in sensitive skin anti-aging formulations."
+  },
+  {
+    name: "Ceramides",
+    category: "Barrier Repair",
+    mainFunctions: [
+      "Strengthens skin barrier",
+      "Prevents moisture loss",
+      "Maintains lipid bilayer"
+    ],
+    benefits: [
+      "Improves skin hydration",
+      "Reduces sensitivity",
+      "Repairs damaged barrier"
+    ],
+    concentration: "1-5%",
+    notes: "Essential lipids that make up 50% of the skin's barrier. REGIMA uses a complex of ceramides 1, 3, and 6-II for optimal barrier repair."
+  },
+  {
+    name: "Azelaic Acid",
+    category: "Multi-Functional Acid",
+    mainFunctions: [
+      "Anti-inflammatory",
+      "Antimicrobial",
+      "Comedolytic action"
+    ],
+    benefits: [
+      "Reduces acne and rosacea",
+      "Brightens skin tone",
+      "Minimizes pore appearance"
+    ],
+    concentration: "10-20%",
+    notes: "Naturally occurring dicarboxylic acid with multiple benefits. REGIMA incorporates this in acne and rosacea treatment protocols."
+  },
+  {
+    name: "Mandelic Acid",
+    category: "Alpha Hydroxy Acid (AHA)",
+    mainFunctions: [
+      "Gentle exfoliation",
+      "Antimicrobial properties",
+      "Melanin dispersion"
+    ],
+    benefits: [
+      "Suitable for sensitive skin",
+      "Reduces hyperpigmentation",
+      "Improves skin texture"
+    ],
+    concentration: "5-25%",
+    notes: "Derived from bitter almonds, has the largest molecular size among AHAs. REGIMA uses this for gentle professional peels and sensitive skin protocols."
+  },
+  {
+    name: "Zinc Oxide",
+    category: "Mineral Sunscreen",
+    mainFunctions: [
+      "Broad-spectrum UV protection",
+      "Anti-inflammatory",
+      "Wound healing support"
+    ],
+    benefits: [
+      "Physical sun protection",
+      "Soothes irritated skin",
+      "Non-comedogenic"
+    ],
+    concentration: "10-25%",
+    notes: "Mineral UV filter that provides immediate protection. REGIMA uses micronized zinc oxide in daily protection formulations for all skin types."
+  },
+  {
+    name: "Peptide Complex",
+    category: "Anti-Aging Peptides",
+    mainFunctions: [
+      "Multi-target aging approach",
+      "Collagen stimulation",
+      "Cellular communication"
+    ],
+    benefits: [
+      "Comprehensive anti-aging benefits",
+      "Improved skin firmness",
+      "Enhanced skin renewal"
+    ],
+    concentration: "3-8%",
+    notes: "REGIMA's proprietary blend of signal peptides, carrier peptides, and neurotransmitter-affecting peptides for comprehensive anti-aging results."
   }
 ];
 
