@@ -133,20 +133,19 @@ export function TopNavigation({ user, onLogin, onLogout }: TopNavigationProps) {
                           const isActive = location === item.href;
                           return (
                             <li key={item.href}>
-                              <Link href={item.href}>
-                                <a 
-                                  className={cn(
-                                    "flex items-center px-4 py-2 text-sm rounded-md transition-colors",
-                                    isActive 
-                                      ? "bg-primary text-primary-foreground" 
-                                      : "hover:bg-accent hover:text-accent-foreground"
-                                  )}
-                                  onClick={() => setIsSheetOpen(false)}
-                                  data-testid={item.testId}
-                                >
-                                  <Icon size={16} className="mr-2" />
-                                  {item.label}
-                                </a>
+                              <Link 
+                                href={item.href}
+                                className={cn(
+                                  "flex items-center px-4 py-2 text-sm rounded-md transition-colors",
+                                  isActive 
+                                    ? "bg-primary text-primary-foreground" 
+                                    : "hover:bg-accent hover:text-accent-foreground"
+                                )}
+                                onClick={() => setIsSheetOpen(false)}
+                                data-testid={item.testId}
+                              >
+                                <Icon size={16} className="mr-2" />
+                                {item.label}
                               </Link>
                             </li>
                           );
@@ -165,20 +164,19 @@ export function TopNavigation({ user, onLogin, onLogout }: TopNavigationProps) {
                           const isActive = location === item.href;
                           return (
                             <li key={item.href}>
-                              <Link href={item.href}>
-                                <a 
-                                  className={cn(
-                                    "flex items-center px-4 py-2 text-sm rounded-md transition-colors",
-                                    isActive 
-                                      ? "bg-primary text-primary-foreground" 
-                                      : "hover:bg-accent hover:text-accent-foreground"
-                                  )}
-                                  onClick={() => setIsSheetOpen(false)}
-                                  data-testid={item.testId}
-                                >
-                                  <Icon size={16} className="mr-2" />
-                                  {item.label}
-                                </a>
+                              <Link 
+                                href={item.href}
+                                className={cn(
+                                  "flex items-center px-4 py-2 text-sm rounded-md transition-colors",
+                                  isActive 
+                                    ? "bg-primary text-primary-foreground" 
+                                    : "hover:bg-accent hover:text-accent-foreground"
+                                )}
+                                onClick={() => setIsSheetOpen(false)}
+                                data-testid={item.testId}
+                              >
+                                <Icon size={16} className="mr-2" />
+                                {item.label}
                               </Link>
                             </li>
                           );
@@ -214,14 +212,12 @@ export function TopNavigation({ user, onLogin, onLogout }: TopNavigationProps) {
             )}
             
             {/* Logo */}
-            <Link href="/">
-              <a className="flex items-center space-x-2 group" data-testid="link-home">
-                <Shield className="h-8 w-8 text-primary group-hover:scale-110 transition-transform" />
-                <div>
-                  <span className="font-bold text-xl text-secondary-foreground">REGIMA</span>
-                  <span className="hidden sm:inline-block ml-2 text-sm text-primary">Training Portal</span>
-                </div>
-              </a>
+            <Link href="/" className="flex items-center space-x-2 group" data-testid="link-home">
+              <Shield className="h-8 w-8 text-primary group-hover:scale-110 transition-transform" />
+              <div>
+                <span className="font-bold text-xl text-secondary-foreground">REGIMA</span>
+                <span className="hidden sm:inline-block ml-2 text-sm text-primary">Training Portal</span>
+              </div>
             </Link>
           </div>
           
@@ -232,18 +228,20 @@ export function TopNavigation({ user, onLogin, onLogout }: TopNavigationProps) {
               {trainingItems.map((item) => {
                 const isActive = location === item.href;
                 return (
-                  <Link key={item.href} href={item.href}>
-                    <Button 
-                      variant={isActive ? "default" : "ghost"}
-                      className={cn(
-                        "text-sm",
-                        !isActive && "text-secondary-foreground hover:text-primary hover:bg-primary/10"
-                      )}
-                      data-testid={item.testId}
-                    >
+                  <Button
+                    key={item.href}
+                    variant={isActive ? "default" : "ghost"}
+                    className={cn(
+                      "text-sm",
+                      !isActive && "text-secondary-foreground hover:text-primary hover:bg-primary/10"
+                    )}
+                    data-testid={item.testId}
+                    asChild
+                  >
+                    <Link href={item.href} aria-current={isActive ? "page" : undefined}>
                       {item.label}
-                    </Button>
-                  </Link>
+                    </Link>
+                  </Button>
                 );
               })}
             </div>
@@ -256,18 +254,20 @@ export function TopNavigation({ user, onLogin, onLogout }: TopNavigationProps) {
               {infoItems.map((item) => {
                 const isActive = location === item.href;
                 return (
-                  <Link key={item.href} href={item.href}>
-                    <Button 
-                      variant={isActive ? "default" : "ghost"}
-                      className={cn(
-                        "text-sm",
-                        !isActive && "text-secondary-foreground hover:text-primary hover:bg-primary/10"
-                      )}
-                      data-testid={item.testId}
-                    >
+                  <Button
+                    key={item.href}
+                    variant={isActive ? "default" : "ghost"}
+                    className={cn(
+                      "text-sm",
+                      !isActive && "text-secondary-foreground hover:text-primary hover:bg-primary/10"
+                    )}
+                    data-testid={item.testId}
+                    asChild
+                  >
+                    <Link href={item.href} aria-current={isActive ? "page" : undefined}>
                       {item.label}
-                    </Button>
-                  </Link>
+                    </Link>
+                  </Button>
                 );
               })}
             </div>
@@ -312,11 +312,9 @@ export function TopNavigation({ user, onLogin, onLogout }: TopNavigationProps) {
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
-                    <Link href="/profile">
-                      <a className="flex items-center cursor-pointer w-full" data-testid="link-profile">
-                        <UserIcon className="mr-2 h-4 w-4" />
-                        Profile
-                      </a>
+                    <Link href="/profile" className="flex items-center cursor-pointer w-full" data-testid="link-profile">
+                      <UserIcon className="mr-2 h-4 w-4" />
+                      Profile
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
