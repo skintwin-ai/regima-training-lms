@@ -5,8 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQuery } from "@tanstack/react-query";
-import { Sidebar } from "@/components/layout/sidebar";
-import { MobileHeader } from "@/components/layout/mobile-header";
 import { Medal, Book, UserCircle, ArrowRight, CheckCircle, AlertCircle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,7 +17,6 @@ interface DashboardProps {
 }
 
 export default function Dashboard({ user, onLogin, onLogout }: DashboardProps) {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [isLoggingIn, setIsLoggingIn] = useState(false);
@@ -51,21 +48,7 @@ export default function Dashboard({ user, onLogin, onLogout }: DashboardProps) {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      <Sidebar 
-        user={user} 
-        isOpen={isSidebarOpen} 
-        onClose={() => setIsSidebarOpen(false)} 
-      />
-      
-      <div className="flex-1 flex flex-col h-screen overflow-y-auto bg-gray-50 dark:bg-slate-950">
-        <MobileHeader 
-          onMenuClick={() => setIsSidebarOpen(true)} 
-          user={user} 
-        />
-        
-        <main className="flex-1">
-          <div className="max-w-6xl mx-auto px-4 py-6 md:py-8 lg:py-10">
+    <div className="max-w-6xl mx-auto px-4 py-6 md:py-8 lg:py-10">
             {user ? (
               <>
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
@@ -267,9 +250,6 @@ export default function Dashboard({ user, onLogin, onLogout }: DashboardProps) {
                 </Card>
               </div>
             )}
-          </div>
-        </main>
-      </div>
     </div>
   );
 }

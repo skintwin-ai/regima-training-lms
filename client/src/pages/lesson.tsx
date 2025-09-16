@@ -1,8 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { Sidebar } from "@/components/layout/sidebar";
-import { MobileHeader } from "@/components/layout/mobile-header";
 import { VideoPlayer } from "@/components/course/video-player";
 import { StepByStepGuide } from "@/components/course/step-by-step-guide";
 import { KnowledgeCheck } from "@/components/course/knowledge-check";
@@ -20,7 +18,6 @@ interface LessonProps {
 }
 
 export default function Lesson({ lessonId, user, onLogin, onLogout }: LessonProps) {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [, setLocation] = useLocation();
 
   // Fetch lesson data
@@ -61,20 +58,7 @@ export default function Lesson({ lessonId, user, onLogin, onLogout }: LessonProp
   const nextLesson = currentLessonIndex < moduleData.lessons.length - 1 ? moduleData.lessons[currentLessonIndex + 1] : null;
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      <Sidebar 
-        user={user} 
-        isOpen={isSidebarOpen} 
-        onClose={() => setIsSidebarOpen(false)} 
-      />
-      
-      <div className="flex-1 overflow-y-auto bg-gray-50 dark:bg-slate-950">
-        <MobileHeader 
-          onMenuClick={() => setIsSidebarOpen(true)} 
-          user={user} 
-        />
-        
-        <div className="max-w-6xl mx-auto px-4 py-6 md:py-8 lg:py-10">
+    <div className="max-w-6xl mx-auto px-4 py-6 md:py-8 lg:py-10">
           {/* Module Header */}
           <ModuleHeader 
             module={moduleData} 
@@ -213,8 +197,6 @@ export default function Lesson({ lessonId, user, onLogin, onLogout }: LessonProp
               userId={user?.id}
             />
           </div>
-        </div>
-      </div>
     </div>
   );
 }

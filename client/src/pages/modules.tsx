@@ -1,8 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation, useParams } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { Sidebar } from "@/components/layout/sidebar";
-import { MobileHeader } from "@/components/layout/mobile-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -16,7 +14,6 @@ interface ModulesProps {
 }
 
 export default function Modules({ user, onLogin, onLogout }: ModulesProps) {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const params = useParams();
   const [, setLocation] = useLocation();
   
@@ -71,20 +68,7 @@ export default function Modules({ user, onLogin, onLogout }: ModulesProps) {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      <Sidebar 
-        user={user} 
-        isOpen={isSidebarOpen} 
-        onClose={() => setIsSidebarOpen(false)} 
-      />
-      
-      <div className="flex-1 overflow-y-auto bg-gray-50 dark:bg-slate-950">
-        <MobileHeader 
-          onMenuClick={() => setIsSidebarOpen(true)} 
-          user={user} 
-        />
-        
-        <div className="max-w-6xl mx-auto px-4 py-6 md:py-8 lg:py-10">
+    <div className="max-w-6xl mx-auto px-4 py-6 md:py-8 lg:py-10">
           {moduleId && moduleDetail ? (
             // Single module view with lessons
             <>
@@ -245,8 +229,6 @@ export default function Modules({ user, onLogin, onLogout }: ModulesProps) {
               )}
             </>
           )}
-        </div>
-      </div>
     </div>
   );
 }

@@ -13,7 +13,6 @@ import {
 } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { MainLayout } from "../components/layout/main-layout";
 import { Separator } from "@/components/ui/separator";
 import { User } from "@/lib/types";
 import { getQueryFn } from "@/lib/queryClient";
@@ -58,13 +57,7 @@ export default function Ingredients({ user, onLogin, onLogout }: IngredientsProp
   });
   
   return (
-    <MainLayout 
-      user={user} 
-      onLogin={onLogin} 
-      onLogout={onLogout} 
-      title="REGIMA Ingredients Reference"
-    >
-      <div className="container mx-auto py-6 max-w-6xl">
+    <div className="container mx-auto py-6 max-w-6xl">
         <div className="mb-6">
           <h1 className="text-3xl font-bold tracking-tight">Skincare Ingredients Reference</h1>
           <p className="text-muted-foreground mt-2">
@@ -202,7 +195,6 @@ export default function Ingredients({ user, onLogin, onLogout }: IngredientsProp
             </p>
           </div>
         </div>
-      </div>
-    </MainLayout>
+    </div>
   );
 }
