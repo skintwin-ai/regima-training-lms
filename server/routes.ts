@@ -1,5 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import { getIntegrationManager, createIntegrationRouter } from "./integrations";
 import { storage } from "./storage";
 import path from "path";
 import { z } from "zod";
@@ -612,6 +613,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Error fetching products data" });
     }
   });
+
+  // Initialize and mount integration routes (LMS + Shopify)
+  const integrationManager = getIntegrationManager();
+  await integrationManager.initialize();
+  app.use('/api', createIntegrationRouter(integrationManager));
 
   const httpServer = createServer(app);
   return httpServer;
