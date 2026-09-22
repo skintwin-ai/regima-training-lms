@@ -5,7 +5,7 @@ import { storage } from "./storage";
 import { verifyPassword } from "./auth/password";
 import { certLevelForModuleOrder, ingestCertificationEvent } from "./platform/certifications";
 import { emailFromUsername } from "./platform/identity";
-import { sessionForUser } from "./platform/session";
+import { continueUrls, establishLmsUser, sessionForUser, verifyPlatformSession } from "./platform/session";
 import { ensureCurriculum } from "./curriculum";
 import path from "path";
 import { z } from "zod";
@@ -59,13 +59,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Store user in session
       req.session.userId = user.id;
 
+      const platformSession = sessionForUser(user);
       return res.json({
         id: user.id,
         username: user.username,
         name: user.name,
         role: user.role,
         email: emailFromUsername(user.username),
-        platformSession: sessionForUser(user),
+        platformSession,
+        continue: continueUrls(platformSession),
       });
     } catch (error) {
       console.error('Login error:', error);
@@ -96,18 +98,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: 'User not found' });
       }
 
+      const platformSession = sessionForUser(user);
       return res.json({
         id: user.id,
         username: user.username,
         name: user.name,
         role: user.role,
         email: emailFromUsername(user.username),
-        platformSession: sessionForUser(user),
+        platformSession,
+        continue: continueUrls(platformSession),
       });
     } catch (error) {
       console.error('Auth check error:', error);
       return res.status(500).json({ message: 'Internal server error' });
     }
+  });
+
+  app.get('/api/auth/platform', async (req, res) => {
+    const token = typeof req.query.session === 'string' ? req.query.session : '';
+    const actor = verifyPlatformSession(token);
+    if (!actor) {
+      return res.status(401).json({ message: 'Invalid platform session' });
+    }
+    const user = await establishLmsUser(storage, actor);
+    req.session.userId = user.id;
+    return res.redirect('/');
+  });
+
+  app.post('/api/auth/platform', async (req, res) => {
+    const token = req.body?.platformSession || req.body?.session;
+    const actor = verifyPlatformSession(token);
+    if (!actor) {
+      return res.status(401).json({ message: 'Invalid platform session' });
+    }
+    const user = await establishLmsUser(storage, actor);
+    req.session.userId = user.id;
+    const platformSession = sessionForUser({ username: actor.email, name: actor.name });
+    return res.json({
+      id: user.id,
+      email: actor.email,
+      name: actor.name,
+      platformSession,
+      continue: continueUrls(platformSession),
+    });
   });
 
   app.post('/api/platform/session', async (req, res) => {

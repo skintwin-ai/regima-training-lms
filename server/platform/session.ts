@@ -116,3 +116,48 @@ export function sessionForUser(user: {
     source: "regima-training-lms",
   });
 }
+
+export async function establishLmsUser(
+  storage: {
+    getUserByUsername: (username: string) => Promise<{ id: number } | undefined>;
+    createUser: (user: {
+      username: string;
+      name: string;
+      password: string;
+      role: string;
+    }) => Promise<{ id: number }>;
+  },
+  actor: PlatformActor
+) {
+  const local = actor.email.split("@")[0];
+  return (
+    (await storage.getUserByUsername(local)) ||
+    (await storage.getUserByUsername(actor.email)) ||
+    storage.createUser({
+      username: local,
+      name: actor.name,
+      password: `platform:${actor.email}`,
+      role: "Skincare Specialist",
+    })
+  );
+}
+
+export function continueUrls(token: string | null) {
+  if (!token) {
+    return { connect: null, suite: null };
+  }
+  const connect = (
+    process.env.SKINTWINNECTOR_URL ||
+    process.env.CONNECTOR_URL ||
+    "http://localhost:3000"
+  ).replace(/\/$/, "");
+  const suite = (process.env.REGIMA_SUITE_URL || "http://localhost:3001").replace(
+    /\/$/,
+    ""
+  );
+  const encoded = encodeURIComponent(token);
+  return {
+    connect: `${connect}/login?platform_session=${encoded}`,
+    suite: `${suite}/api/platform/login?session=${encoded}`,
+  };
+}
