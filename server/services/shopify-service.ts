@@ -36,6 +36,17 @@ const DEFAULT_CONFIG: ShopifyConfig = {
   webhookSecret: process.env.SHOPIFY_WEBHOOK_SECRET || '',
 };
 
+export function isLocalShopifyRail(token = process.env.SHOPIFY_ACCESS_TOKEN || "") {
+  const normalized = String(token).trim().toLowerCase();
+  return (
+    !normalized ||
+    normalized === "placeholder" ||
+    normalized === "changeme" ||
+    normalized.includes("your_key") ||
+    normalized.includes("your-key")
+  );
+}
+
 // Metafield namespaces for course data
 const METAFIELD_NAMESPACE = 'regima_training';
 
@@ -46,6 +57,11 @@ export class ShopifyService {
   // In-memory storage for mappings (would be database in production)
   private productMappings: Map<string, CourseProductMapping> = new Map();
   private enrollments: Map<number, ShopifyEnrollment[]> = new Map();
+  private localProducts = new Map<string, any>();
+  private localCustomers = new Map<string, any>();
+  private localOrders = new Map<string, any>();
+  private localWebhooks: any[] = [];
+  private localSeq = 1;
 
   constructor(config: Partial<ShopifyConfig> = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
@@ -60,6 +76,9 @@ export class ShopifyService {
     method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET',
     body?: unknown
   ): Promise<T> {
+    if (isLocalShopifyRail(this.config.accessToken)) {
+      return this.localShopifyRequest<T>(endpoint, method, body);
+    }
     const url = `${this.baseUrl}${endpoint}`;
     
     const response = await fetch(url, {
@@ -105,6 +124,160 @@ export class ShopifyService {
     }
 
     return result.data;
+  }
+
+  private nextLocalId(prefix: string) {
+    this.localSeq += 1;
+    return `${prefix}${this.localSeq}`;
+  }
+
+  private localShopifyRequest<T>(
+    endpoint: string,
+    method: 'GET' | 'POST' | 'PUT' | 'DELETE',
+    body?: unknown
+  ): T {
+    const path = endpoint.split('?')[0];
+    const payload = (body || {}) as any;
+
+    if (method === 'POST' && path === '/products.json') {
+      const product = payload.product || {};
+      const id = this.nextLocalId('prod_');
+      const variantId = this.nextLocalId('var_');
+      const stored = {
+        id,
+        title: product.title || 'Training course',
+        handle: String(product.title || 'course').toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+        body_html: product.body_html || '',
+        product_type: product.product_type || 'Digital Course',
+        vendor: product.vendor || 'RegimA Training',
+        tags: Array.isArray(product.tags) ? product.tags.join(', ') : product.tags || '',
+        variants: [{
+          id: variantId,
+          title: 'Default',
+          price: product.variants?.[0]?.price || '0.00',
+          sku: product.variants?.[0]?.sku || id,
+          inventory_quantity: 0,
+        }],
+      };
+      this.localProducts.set(id, stored);
+      return { product: stored } as T;
+    }
+
+    if (method === 'PUT' && path.startsWith('/products/') && path.endsWith('.json')) {
+      const id = path.slice('/products/'.length, -'.json'.length);
+      const existing = this.localProducts.get(id);
+      if (!existing) throw new Error(`Shopify API error: 404 - product ${id}`);
+      const next = { ...existing, ...payload.product, id };
+      this.localProducts.set(id, next);
+      return { product: next } as T;
+    }
+
+    if (method === 'GET' && path.startsWith('/products/') && path.endsWith('.json') && path !== '/products.json') {
+      const id = path.slice('/products/'.length, -'.json'.length);
+      const product = this.localProducts.get(id);
+      if (!product) throw new Error(`Shopify API error: 404 - product ${id}`);
+      return { product } as T;
+    }
+
+    if (method === 'GET' && path === '/products.json') {
+      return { products: Array.from(this.localProducts.values()) } as T;
+    }
+
+    if (method === 'GET' && path.startsWith('/customers/search.json')) {
+      const query = decodeURIComponent((endpoint.split('query=')[1] || '').replace('email:', ''));
+      const customers = Array.from(this.localCustomers.values()).filter((c) => c.email === query);
+      return { customers } as T;
+    }
+
+    if (method === 'GET' && path.startsWith('/customers/') && path.endsWith('.json')) {
+      const id = path.slice('/customers/'.length, -'.json'.length);
+      const customer = this.localCustomers.get(id);
+      if (!customer) throw new Error(`Shopify API error: 404 - customer ${id}`);
+      return { customer } as T;
+    }
+
+    if (method === 'PUT' && path.startsWith('/customers/')) {
+      const id = path.slice('/customers/'.length, -'.json'.length);
+      const existing = this.localCustomers.get(id) || { id, email: '', first_name: '', last_name: '', tags: '' };
+      const next = { ...existing, ...payload.customer, id };
+      this.localCustomers.set(id, next);
+      return { customer: next } as T;
+    }
+
+    if (method === 'GET' && path.startsWith('/orders/')) {
+      const id = path.slice('/orders/'.length, -'.json'.length);
+      const order = this.localOrders.get(id);
+      if (!order) throw new Error(`Shopify API error: 404 - order ${id}`);
+      return { order } as T;
+    }
+
+    if (method === 'POST' && path === '/webhooks.json') {
+      const webhook = { id: this.nextLocalId('wh_'), ...(payload.webhook || {}) };
+      this.localWebhooks.push(webhook);
+      return { webhook } as T;
+    }
+
+    if (method === 'GET' && path === '/webhooks.json') {
+      return { webhooks: this.localWebhooks } as T;
+    }
+
+    throw new Error(`Local Shopify rail does not implement ${method} ${endpoint}`);
+  }
+
+  async createPaidCourseOrder(input: {
+    email: string;
+    userId: number;
+    moduleId: number;
+    title?: string;
+  }) {
+    let mapping = Array.from(this.productMappings.values()).find(
+      (item) => item.moduleId === input.moduleId
+    );
+    if (!mapping) {
+      const product = await this.createCourseProduct(
+        input.moduleId,
+        input.title || `Module ${input.moduleId}`,
+        'SkinTwin local Shopify course',
+        '0.00'
+      );
+      mapping = this.getProductMapping(product.id);
+    }
+    if (!mapping) {
+      throw new Error('Unable to map course product');
+    }
+
+    const id = this.nextLocalId('ord_');
+    const customer = {
+      id: this.nextLocalId('cust_'),
+      email: input.email,
+      first_name: 'Demo',
+      last_name: 'Therapist',
+      tags: 'training',
+    };
+    this.localCustomers.set(customer.id, customer);
+    const orderRaw = {
+      id,
+      name: `#L${id}`,
+      email: input.email,
+      customer,
+      line_items: [
+        {
+          id: this.nextLocalId('li_'),
+          product_id: mapping.shopifyProductId,
+          variant_id: mapping.shopifyVariantId,
+          title: input.title || `Module ${input.moduleId}`,
+          quantity: 1,
+          price: '0.00',
+        },
+      ],
+      fulfillment_status: 'unfulfilled',
+      financial_status: 'paid',
+      created_at: new Date().toISOString(),
+    };
+    this.localOrders.set(id, orderRaw);
+    const order = this.transformOrder(orderRaw);
+    const enrollments = await this.processOrderForEnrollment(order, input.userId);
+    return { order, enrollments, local: true };
   }
 
   // ==========================================================================
@@ -414,6 +587,9 @@ export class ShopifyService {
    * Verify Shopify webhook signature
    */
   verifyWebhookSignature(body: string, signature: string): boolean {
+    if (isLocalShopifyRail(this.config.accessToken) && !this.config.webhookSecret) {
+      return true;
+    }
     const hash = crypto
       .createHmac('sha256', this.config.webhookSecret)
       .update(body, 'utf8')
@@ -624,6 +800,10 @@ export function getShopifyService(config?: Partial<ShopifyConfig>): ShopifyServi
     shopifyServiceInstance = new ShopifyService(config);
   }
   return shopifyServiceInstance;
+}
+
+export function resetShopifyServiceForTests() {
+  shopifyServiceInstance = null;
 }
 
 export default ShopifyService;

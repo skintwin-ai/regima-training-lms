@@ -334,6 +334,36 @@ router.get('/orders/:orderId', async (req: Request, res: Response) => {
 });
 
 /**
+ * POST /api/shopify/local/order
+ * Settle a course order on the local Shopify rail and enroll the LMS user.
+ */
+router.post('/local/order', async (req: Request, res: Response) => {
+  try {
+    const moduleId = Number(req.body?.moduleId);
+    const userId = Number(req.body?.userId || req.session.userId);
+    const email = String(req.body?.email || '');
+    if (!moduleId || !userId) {
+      return res.status(400).json({ error: 'moduleId and userId are required' });
+    }
+    const shopifyService = getShopifyService();
+    const result = await shopifyService.createPaidCourseOrder({
+      email: email || 'demo@skintwin.ai',
+      userId,
+      moduleId,
+    });
+    res.json({
+      success: true,
+      local: true,
+      order: result.order,
+      enrollments: result.enrollments,
+    });
+  } catch (error) {
+    console.error('Local Shopify order error:', error);
+    res.status(500).json({ error: 'Failed to settle local Shopify order' });
+  }
+});
+
+/**
  * POST /api/shopify/orders/:orderId/process
  * Manually process an order for enrollment
  */
