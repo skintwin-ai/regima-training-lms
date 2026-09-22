@@ -55,15 +55,26 @@ export default function Dashboard({ user, onLogin, onLogout }: DashboardProps) {
                   <div>
                     <h1 className="text-3xl font-bold text-foreground">Welcome, {user.name}</h1>
                     <p className="text-muted-foreground">Continue your REGIMA skincare training journey</p>
-                    {user.continue?.connect && (
+                    {(user.continue?.connect || user.continue?.chain) && (
                       <div className="mt-3 flex flex-wrap gap-2">
-                        <a
-                          href={user.continue.connect}
-                          className="text-sm underline"
-                          data-testid="continue-connect"
-                        >
-                          Open SkinTwin Connect
-                        </a>
+                        {user.continue.chain && (
+                          <a
+                            href={user.continue.chain}
+                            className="text-sm underline"
+                            data-testid="continue-platform"
+                          >
+                            Open all SkinTwin apps
+                          </a>
+                        )}
+                        {user.continue.connect && (
+                          <a
+                            href={user.continue.connect}
+                            className="text-sm underline"
+                            data-testid="continue-connect"
+                          >
+                            Open SkinTwin Connect
+                          </a>
+                        )}
                         {user.continue.suite && (
                           <a
                             href={user.continue.suite}

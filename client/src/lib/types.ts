@@ -8,6 +8,8 @@ export interface User {
   continue?: {
     connect?: string | null;
     suite?: string | null;
+    hub?: string | null;
+    chain?: string | null;
   };
 }
 

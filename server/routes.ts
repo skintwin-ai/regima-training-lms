@@ -75,6 +75,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get('/api/auth/continue', async (req, res) => {
+    const userId = req.session.userId;
+    if (!userId) {
+      return res.status(401).json({ message: 'Not authenticated' });
+    }
+    const user = await storage.getUser(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    const urls = continueUrls(sessionForUser(user));
+    if (!urls.chain) {
+      return res.status(503).json({ message: 'Platform session unavailable' });
+    }
+    return res.redirect(302, urls.chain);
+  });
+
   app.post('/api/auth/logout', (req, res) => {
     req.session.destroy((err) => {
       if (err) {

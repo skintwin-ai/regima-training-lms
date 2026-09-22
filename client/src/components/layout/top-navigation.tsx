@@ -45,6 +45,13 @@ const navItems = [
     testId: "link-dashboard",
     category: "training" 
   },
+  {
+    label: "Platform",
+    href: "/platform",
+    icon: Shield,
+    testId: "link-platform",
+    category: "training"
+  },
   { 
     label: "Modules", 
     href: "/modules", 

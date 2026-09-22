@@ -142,22 +142,35 @@ export async function establishLmsUser(
   );
 }
 
+function appOrigin(
+  value: string | undefined,
+  fallback: string
+) {
+  return (value || fallback).replace(/\/$/, "");
+}
+
+export function lmsHubUrl() {
+  return `${appOrigin(process.env.REGIMA_LMS_URL, "http://localhost:5000")}/platform`;
+}
+
 export function continueUrls(token: string | null) {
   if (!token) {
-    return { connect: null, suite: null };
+    return { connect: null, suite: null, hub: lmsHubUrl(), chain: null };
   }
-  const connect = (
-    process.env.SKINTWINNECTOR_URL ||
-    process.env.CONNECTOR_URL ||
+  const connect = appOrigin(
+    process.env.SKINTWINNECTOR_URL || process.env.CONNECTOR_URL,
     "http://localhost:3000"
-  ).replace(/\/$/, "");
-  const suite = (process.env.REGIMA_SUITE_URL || "http://localhost:3001").replace(
-    /\/$/,
-    ""
   );
+  const suite = appOrigin(process.env.REGIMA_SUITE_URL, "http://localhost:3001");
   const encoded = encodeURIComponent(token);
+  const hub = lmsHubUrl();
+  const connectUrl = `${connect}/login?platform_session=${encoded}`;
+  const suiteUrl = `${suite}/api/platform/login?session=${encoded}`;
+  const connectWithNext = `${connectUrl}&next=${encodeURIComponent(hub)}`;
   return {
-    connect: `${connect}/login?platform_session=${encoded}`,
-    suite: `${suite}/api/platform/login?session=${encoded}`,
+    connect: connectUrl,
+    suite: suiteUrl,
+    hub,
+    chain: `${suiteUrl}&next=${encodeURIComponent(connectWithNext)}`,
   };
 }
