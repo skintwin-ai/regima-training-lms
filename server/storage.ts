@@ -219,17 +219,17 @@ export class MemStorage implements IStorage {
       mkdirSync(path.dirname(this.persistPath), { recursive: true });
       const snapshot: Snapshot = {
         version: 1,
-        users: [...this.users.values()],
-        modules: [...this.modules.values()],
-        lessons: [...this.lessons.values()],
-        steps: [...this.steps.values()],
-        resources: [...this.resources.values()],
-        products: [...this.products.values()],
-        quizzes: [...this.quizzes.values()],
-        userProgress: [...this.userProgress.values()],
-        userNotes: [...this.userNotes.values()],
-        lessonFeedback: [...this.lessonFeedback.values()],
-        certificates: [...this.certificates.values()],
+        users: Array.from(this.users.values()),
+        modules: Array.from(this.modules.values()),
+        lessons: Array.from(this.lessons.values()),
+        steps: Array.from(this.steps.values()),
+        resources: Array.from(this.resources.values()),
+        products: Array.from(this.products.values()),
+        quizzes: Array.from(this.quizzes.values()),
+        userProgress: Array.from(this.userProgress.values()),
+        userNotes: Array.from(this.userNotes.values()),
+        lessonFeedback: Array.from(this.lessonFeedback.values()),
+        certificates: Array.from(this.certificates.values()),
         certifications: this.certifications,
         counters: {
           currentUserId: this.currentUserId,
@@ -575,7 +575,7 @@ export class MemStorage implements IStorage {
 
 function nextId(map: Map<number, unknown>): number {
   let max = 0;
-  for (const id of map.keys()) {
+  for (const id of Array.from(map.keys())) {
     if (id > max) max = id;
   }
   return max + 1;

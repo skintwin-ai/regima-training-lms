@@ -15,7 +15,7 @@ export type CertificationIngestResult = {
 
 export type CertificationRecorder = (
   event: CertificationIngest
-) => void | Promise<void>;
+) => unknown;
 
 export function suiteIngestUrl(suiteUrl: string): string {
   return `${suiteUrl.replace(/\/$/, "")}/api/trpc/platform.ingestCertification`;
