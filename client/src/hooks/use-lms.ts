@@ -45,6 +45,7 @@ export function useLMS() {
       const response = await fetch('/api/lms/xapi/lesson-launched', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ lessonId, lessonTitle, moduleId }),
       });
       
@@ -80,6 +81,7 @@ export function useLMS() {
       const response = await fetch('/api/lms/xapi/lesson-completed', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ lessonId, lessonTitle, moduleId, duration }),
       });
       
@@ -117,6 +119,7 @@ export function useLMS() {
       const response = await fetch('/api/lms/xapi/quiz-result', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ quizId, lessonId, quizTitle, score, maxScore, moduleId }),
       });
       

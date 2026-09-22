@@ -2,6 +2,8 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { getIntegrationManager, createIntegrationRouter } from "./integrations";
 import { storage } from "./storage";
+import { verifyPassword } from "./auth/password";
+import { certLevelForModuleOrder, ingestCertificationEvent } from "./platform/certifications";
 import path from "path";
 import { z } from "zod";
 import {
@@ -47,7 +49,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const user = await storage.getUserByUsername(username);
 
-      if (!user || user.password !== password) {
+      if (!user || !verifyPassword(password, user.password)) {
         return res.status(401).json({ message: 'Invalid credentials' });
       }
 
@@ -270,6 +272,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       const certificate = await storage.createCertificate(certificateData);
+      const user = await storage.getUser(req.session.userId);
+      const module = await storage.getModule(certificateData.moduleId);
+      void ingestCertificationEvent(
+        {
+          therapistEmail: `${user?.username ?? "therapist"}@regima.training`,
+          therapistName: user?.name ?? "Therapist",
+          certLevel: certLevelForModuleOrder(module?.order ?? 1),
+          courseId: String(certificateData.moduleId),
+          source: "regima-training-lms",
+        },
+        {
+          record: (event) => storage.recordCertification(event),
+        }
+      ).catch((error) => {
+        console.warn("Certificate suite ingest failed open:", error);
+      });
       res.json(certificate);
     } catch (error) {
       console.error('Create certificate error:', error);
@@ -288,6 +306,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Get certificates error:', error);
       res.status(500).json({ message: 'Failed to fetch certificates' });
+    }
+  });
+
+  app.post('/api/platform/certifications', async (req, res) => {
+    try {
+      const { therapistEmail, therapistName, certLevel, courseId, source } = req.body ?? {};
+      if (!therapistEmail || !therapistName || !certLevel || !courseId) {
+        return res.status(400).json({ message: 'therapistEmail, therapistName, certLevel, and courseId are required' });
+      }
+
+      const result = await ingestCertificationEvent(
+        {
+          therapistEmail,
+          therapistName,
+          certLevel,
+          courseId: String(courseId),
+          source: source || "regima-training-lms",
+        },
+        {
+          record: (event) => storage.recordCertification(event),
+        }
+      );
+
+      res.json({
+        ok: true,
+        ...result,
+        certifications: storage.getCertifications(),
+      });
+    } catch (error) {
+      console.error('Certification ingest error:', error);
+      res.status(500).json({ message: 'Failed to record certification' });
     }
   });
 
@@ -626,6 +675,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 // Initialize sample data for the application
 async function initializeData() {
   try {
+    if (!storage.isEmpty()) {
+      return;
+    }
+
     // Create skincare training modules
     const modules = [
       {

@@ -99,6 +99,9 @@ function Router() {
         <Route path="/">
           <Dashboard user={user} onLogin={handleLogin} onLogout={handleLogout} />
         </Route>
+        <Route path="/modules/:id">
+          <Modules user={user} onLogin={handleLogin} onLogout={handleLogout} />
+        </Route>
         <Route path="/modules">
           <Modules user={user} onLogin={handleLogin} onLogout={handleLogout} />
         </Route>
