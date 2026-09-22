@@ -257,7 +257,7 @@ export class ShopifyService {
     this.localCustomers.set(customer.id, customer);
     const orderRaw = {
       id,
-      name: `#L${id}`,
+      name: `#${id}`,
       email: input.email,
       customer,
       line_items: [
