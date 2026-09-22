@@ -27,6 +27,7 @@ export async function ingestCertificationEvent(
     suiteUrl?: string | null;
     fetchImpl?: typeof fetch;
     record?: CertificationRecorder;
+    authorization?: string | null;
   } = {}
 ): Promise<CertificationIngestResult> {
   if (options.record) {
@@ -39,10 +40,18 @@ export async function ingestCertificationEvent(
   }
 
   const fetchImpl = options.fetchImpl ?? fetch;
+  const headers: Record<string, string> = {
+    "content-type": "application/json",
+  };
+  if (options.authorization) {
+    headers.authorization = options.authorization.startsWith("Bearer ")
+      ? options.authorization
+      : `Bearer ${options.authorization}`;
+  }
   try {
     const response = await fetchImpl(suiteIngestUrl(suiteUrl), {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers,
       body: JSON.stringify({ json: event }),
     });
     if (!response.ok) {

@@ -5,6 +5,7 @@ import { storage } from "./storage";
 import { verifyPassword } from "./auth/password";
 import { certLevelForModuleOrder, ingestCertificationEvent } from "./platform/certifications";
 import { emailFromUsername } from "./platform/identity";
+import { sessionForUser } from "./platform/session";
 import { ensureCurriculum } from "./curriculum";
 import path from "path";
 import { z } from "zod";
@@ -62,7 +63,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         id: user.id,
         username: user.username,
         name: user.name,
-        role: user.role
+        role: user.role,
+        email: emailFromUsername(user.username),
+        platformSession: sessionForUser(user),
       });
     } catch (error) {
       console.error('Login error:', error);
@@ -97,12 +100,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
         id: user.id,
         username: user.username,
         name: user.name,
-        role: user.role
+        role: user.role,
+        email: emailFromUsername(user.username),
+        platformSession: sessionForUser(user),
       });
     } catch (error) {
       console.error('Auth check error:', error);
       return res.status(500).json({ message: 'Internal server error' });
     }
+  });
+
+  app.post('/api/platform/session', async (req, res) => {
+    const userId = req.session.userId;
+    if (!userId) {
+      return res.status(401).json({ message: 'Not authenticated' });
+    }
+    const user = await storage.getUser(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    return res.json({
+      email: emailFromUsername(user.username),
+      platformSession: sessionForUser(user),
+    });
   });
 
   // Module routes
@@ -286,6 +306,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         },
         {
           record: (event) => storage.recordCertification(event),
+          authorization: sessionForUser(user ?? {}),
         }
       ).catch((error) => {
         console.warn("Certificate suite ingest failed open:", error);
@@ -328,6 +349,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         },
         {
           record: (event) => storage.recordCertification(event),
+          authorization:
+            (typeof req.headers.authorization === "string" &&
+              req.headers.authorization) ||
+            sessionForUser({ username: therapistEmail, name: therapistName }),
         }
       );
 
