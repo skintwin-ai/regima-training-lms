@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { VideoPlayer } from "@/components/course/video-player";
@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { ModuleHeader } from "@/components/course/module-header";
 import { ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
 import { type User } from "@/lib/types";
+import { useLMS } from "@/hooks/use-lms";
+import { apiRequest } from "@/lib/queryClient";
 
 interface LessonProps {
   lessonId: number;
@@ -19,6 +21,8 @@ interface LessonProps {
 
 export default function Lesson({ lessonId, user, onLogin, onLogout }: LessonProps) {
   const [, setLocation] = useLocation();
+  const launchedLessonId = useRef<number | null>(null);
+  const { trackLessonLaunched, trackLessonCompleted, trackQuizResult } = useLMS();
 
   // Fetch lesson data
   const { data: lessonData, isLoading } = useQuery({
@@ -38,6 +42,35 @@ export default function Lesson({ lessonId, user, onLogin, onLogout }: LessonProp
       setLocation('/');
     }
   }, [isLoading, lessonData, setLocation]);
+
+  useEffect(() => {
+    if (!user || !lessonData || launchedLessonId.current === lessonId) {
+      return;
+    }
+    launchedLessonId.current = lessonId;
+    void trackLessonLaunched(lessonId, lessonData.title, lessonData.moduleId);
+  }, [user, lessonData, lessonId, trackLessonLaunched]);
+
+  const handleQuizComplete = (score: number, total: number) => {
+    if (!lessonData) return;
+    const quizId = lessonData.quiz?.id ?? lessonId;
+    void trackQuizResult(
+      quizId,
+      lessonId,
+      `${lessonData.title} quiz`,
+      score,
+      total,
+      lessonData.moduleId
+    );
+    void trackLessonCompleted(lessonId, lessonData.title, lessonData.moduleId);
+    if (user && total > 0 && score / total >= 0.7) {
+      void apiRequest("POST", "/api/certificates", {
+        moduleId: lessonData.moduleId,
+      }).catch((error) => {
+        console.warn("Certificate create failed open:", error);
+      });
+    }
+  };
 
   if (isLoading) {
     return (
@@ -151,6 +184,7 @@ export default function Lesson({ lessonId, user, onLogin, onLogout }: LessonProp
                   lessonId={lessonId}
                   moduleId={moduleData.id}
                   userId={user?.id}
+                  onComplete={handleQuizComplete}
                 />
               )}
               

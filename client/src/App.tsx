@@ -12,6 +12,7 @@ import Ingredients from "@/pages/ingredients";
 import Products from "@/pages/products";
 import About from "@/pages/about";
 import Help from "@/pages/help";
+import Platform from "@/pages/platform";
 import { useState, useEffect } from "react";
 import { apiRequest } from "./lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -50,7 +51,13 @@ function Router() {
       const res = await apiRequest('POST', '/api/auth/login', { username, password });
       const userData = await res.json();
       setUser(userData);
-      setLocation('/');
+      const onOperatorHub =
+        typeof window !== "undefined" && window.location.pathname === "/platform";
+      if (onOperatorHub && userData.continue?.chain) {
+        window.location.assign(userData.continue.chain);
+        return true;
+      }
+      setLocation(onOperatorHub ? "/platform" : "/");
       toast({
         title: "Login successful",
         description: `Welcome back, ${userData.name}!`,
@@ -99,6 +106,9 @@ function Router() {
         <Route path="/">
           <Dashboard user={user} onLogin={handleLogin} onLogout={handleLogout} />
         </Route>
+        <Route path="/modules/:id">
+          <Modules user={user} onLogin={handleLogin} onLogout={handleLogout} />
+        </Route>
         <Route path="/modules">
           <Modules user={user} onLogin={handleLogin} onLogout={handleLogout} />
         </Route>
@@ -116,6 +126,9 @@ function Router() {
         </Route>
         <Route path="/help">
           <Help />
+        </Route>
+        <Route path="/platform">
+          <Platform user={user} onLogin={handleLogin} />
         </Route>
         <Route component={NotFound} />
       </Switch>

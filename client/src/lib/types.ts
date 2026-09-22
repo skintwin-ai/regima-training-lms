@@ -4,6 +4,13 @@ export interface User {
   username: string;
   name: string;
   role: string;
+  email?: string;
+  continue?: {
+    connect?: string | null;
+    suite?: string | null;
+    hub?: string | null;
+    chain?: string | null;
+  };
 }
 
 // Module types
