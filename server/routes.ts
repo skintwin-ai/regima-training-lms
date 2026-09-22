@@ -4,6 +4,8 @@ import { getIntegrationManager, createIntegrationRouter } from "./integrations";
 import { storage } from "./storage";
 import { verifyPassword } from "./auth/password";
 import { certLevelForModuleOrder, ingestCertificationEvent } from "./platform/certifications";
+import { emailFromUsername } from "./platform/identity";
+import { ensureCurriculum } from "./curriculum";
 import path from "path";
 import { z } from "zod";
 import {
@@ -36,7 +38,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   }));
 
   // Initialize data
-  await initializeData();
+  await ensureCurriculum(storage);
 
   // User authentication routes
   app.post('/api/auth/login', async (req, res) => {
@@ -276,7 +278,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const module = await storage.getModule(certificateData.moduleId);
       void ingestCertificationEvent(
         {
-          therapistEmail: `${user?.username ?? "therapist"}@regima.training`,
+          therapistEmail: emailFromUsername(user?.username),
           therapistName: user?.name ?? "Therapist",
           certLevel: certLevelForModuleOrder(module?.order ?? 1),
           courseId: String(certificateData.moduleId),
@@ -318,7 +320,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const result = await ingestCertificationEvent(
         {
-          therapistEmail,
+          therapistEmail: emailFromUsername(therapistEmail),
           therapistName,
           certLevel,
           courseId: String(courseId),
@@ -672,262 +674,3 @@ export async function registerRoutes(app: Express): Promise<Server> {
   return httpServer;
 }
 
-// Initialize sample data for the application
-async function initializeData() {
-  try {
-    if (!storage.isEmpty()) {
-      return;
-    }
-
-    // Create skincare training modules
-    const modules = [
-      {
-        title: "Skin Anatomy & Physiology",
-        description: "Essential knowledge of skin structure, functions, and the science behind REGIMA treatments",
-        estimatedTime: "45 minutes",
-        order: 1
-      },
-      {
-        title: "Skin Types & Conditions",
-        description: "Learn to identify different skin types, common conditions, and appropriate REGIMA solutions",
-        estimatedTime: "60 minutes",
-        order: 2
-      },
-      {
-        title: "Professional Skincare Analysis",
-        description: "Advanced techniques for skin assessment using REGIMA diagnostic protocols",
-        estimatedTime: "60 minutes",
-        order: 3
-      },
-      {
-        title: "Skincare Ingredients & Formulations",
-        description: "Comprehensive study of active ingredients, their functions, benefits, and application in REGIMA products",
-        estimatedTime: "90 minutes",
-        order: 4
-      },
-      {
-        title: "Cleansing & Preparation Techniques",
-        description: "Master the REGIMA cleansing protocols for optimal treatment preparation",
-        estimatedTime: "45 minutes",
-        order: 5
-      },
-      {
-        title: "Exfoliation Methods",
-        description: "Chemical, enzymatic, and mechanical exfoliation techniques using REGIMA professional products",
-        estimatedTime: "60 minutes",
-        order: 6
-      },
-      {
-        title: "Extraction & Clarifying Procedures",
-        description: "Safe and effective extraction techniques for congested skin conditions",
-        estimatedTime: "45 minutes",
-        order: 7
-      },
-      {
-        title: "Facial Massage & Lymphatic Drainage",
-        description: "REGIMA signature massage techniques for enhanced product penetration and detoxification",
-        estimatedTime: "60 minutes",
-        order: 8
-      },
-      {
-        title: "Treatment Masking Protocols",
-        description: "Application techniques and timing for REGIMA's professional treatment masks",
-        estimatedTime: "45 minutes",
-        order: 9
-      },
-      {
-        title: "Advanced Anti-Aging Treatments",
-        description: "Specialized REGIMA protocols for addressing fine lines, wrinkles, and loss of firmness",
-        estimatedTime: "60 minutes",
-        order: 10
-      },
-      {
-        title: "Acne & Problematic Skin Solutions",
-        description: "Targeted treatment protocols for managing acne, congestion, and oily skin conditions",
-        estimatedTime: "60 minutes",
-        order: 11
-      },
-      {
-        title: "Hyperpigmentation & Brightening",
-        description: "REGIMA approaches to treating hyperpigmentation, uneven skin tone, and sun damage",
-        estimatedTime: "60 minutes",
-        order: 12
-      },
-      {
-        title: "Sensitive & Reactive Skin Management",
-        description: "Gentle yet effective protocols for sensitive, reactive, and compromised skin barriers",
-        estimatedTime: "45 minutes",
-        order: 13
-      },
-      {
-        title: "Client Consultation & Treatment Planning",
-        description: "Professional consultation skills and creating customized REGIMA treatment plans",
-        estimatedTime: "60 minutes",
-        order: 14
-      },
-      {
-        title: "Home Care Recommendations",
-        description: "Guidelines for prescribing effective home care regimens with REGIMA retail products",
-        estimatedTime: "45 minutes",
-        order: 15
-      },
-      {
-        title: "REGIMA Business Implementation",
-        description: "Strategies for successfully integrating REGIMA treatments into your skincare business",
-        estimatedTime: "60 minutes",
-        order: 16
-      }
-    ];
-
-    for (const moduleData of modules) {
-      await storage.createModule(moduleData);
-    }
-
-    // Create lesson for module 8 (Facial Massage & Lymphatic Drainage)
-    const lesson = await storage.createLesson({
-      moduleId: 8,
-      title: "Lymphatic Drainage Massage",
-      description: "This lesson covers advanced techniques for facial lymphatic drainage massage, a core component of REGIMA's signature facial treatments.",
-      content: "Lymphatic drainage massage is an essential technique in advanced skincare, targeting the lymphatic system to reduce puffiness and detoxify the skin. REGIMA's approach combines traditional methods with proprietary movements for optimal results.",
-      videoUrl: "https://images.unsplash.com/photo-1595624871930-6e8537998592",
-      order: 4
-    });
-
-    // Create steps for the lesson
-    const steps = [
-      {
-        lessonId: lesson.id,
-        title: "Preparation",
-        description: "Apply REGIMA Lymphatic Boost Oil to clean skin. Use 2-3 pumps and warm between palms before application.",
-        order: 1
-      },
-      {
-        lessonId: lesson.id,
-        title: "Initial Clearing",
-        description: "Begin at the suboccipital release points behind the ears, using gentle stationary circles to open drainage pathways.",
-        order: 2
-      },
-      {
-        lessonId: lesson.id,
-        title: "Cheek Drainage",
-        description: "Use gentle sweeping motions starting from the center of the face, moving outward toward the lymph nodes. Repeat 3-5 times on each side.",
-        order: 3
-      },
-      {
-        lessonId: lesson.id,
-        title: "REGIMA Signature Technique",
-        description: "Apply the proprietary \"butterfly flutter\" technique along the zygomatic arch, using fingertips in a rapid, light-pressure pattern.",
-        order: 4
-      },
-      {
-        lessonId: lesson.id,
-        title: "Under-eye Drainage",
-        description: "Use ring fingers only with extremely light pressure. Start at inner corner and sweep outward, repeating 5 times.",
-        order: 5
-      },
-      {
-        lessonId: lesson.id,
-        title: "Completion",
-        description: "Finish with gentle pressure at the supraclavicular nodes to complete the drainage pathway.",
-        order: 6
-      }
-    ];
-
-    for (const stepData of steps) {
-      await storage.createStep(stepData);
-    }
-
-    // Create resources for the lesson
-    const resources = [
-      {
-        lessonId: lesson.id,
-        title: "Lymphatic Pathways Reference",
-        type: "pdf",
-        url: "/resources/lymphatic-pathways.pdf",
-        fileSize: "2.4 MB"
-      },
-      {
-        lessonId: lesson.id,
-        title: "REGIMA Protocol Guide",
-        type: "pdf",
-        url: "/resources/regima-protocol.pdf",
-        fileSize: "3.1 MB"
-      },
-      {
-        lessonId: lesson.id,
-        title: "Supplemental Technique Video",
-        type: "video",
-        url: "/resources/supplemental-video.mp4",
-        fileSize: "8:34"
-      },
-      {
-        lessonId: lesson.id,
-        title: "Practical Assessment Checklist",
-        type: "checklist",
-        url: "/resources/assessment-checklist.pdf",
-        fileSize: ""
-      }
-    ];
-
-    for (const resourceData of resources) {
-      await storage.createResource(resourceData);
-    }
-
-    // Create product with detailed ingredient information
-    const product = await storage.createProduct({
-      name: "REGIMA Lymphatic Boost Oil",
-      description: "This specialized facial oil contains a proprietary blend of arnica, cypress, and juniper berry essential oils that enhance lymphatic drainage results.",
-      imageUrl: "https://pixabay.com/get/gf03accc58e9bdb900b9c3f194aad50caa954bcac808800638170bf59999f303a4334c2215d52728b795b39b52181fe94830ef697605b21864efaaeee2d50cc31_1280.jpg",
-      ingredients: [
-        "Arnica Montana Extract - Anti-inflammatory; reduces puffiness and swelling; improves circulation",
-        "Cypress Essential Oil - Astringent; stimulates circulation; reduces fluid retention",
-        "Juniper Berry Oil - Detoxifying; lymphatic stimulant; antiseptic properties",
-        "Marula Oil - Rich in antioxidants; deeply moisturizing; enhances skin barrier",
-        "Grapeseed Oil - Lightweight carrier; non-comedogenic; rich in linoleic acid"
-      ]
-    });
-
-    // Create quiz for the lesson
-    const quiz = await storage.createQuiz({
-      lessonId: lesson.id,
-      questions: [
-        {
-          id: "q1",
-          question: "Which of the following best describes the proper pressure for facial lymphatic drainage?",
-          options: [
-            { id: "q1_a", text: "Firm pressure to stimulate circulation" },
-            { id: "q1_b", text: "Medium pressure with occasional deep movements" },
-            { id: "q1_c", text: "Very light pressure that barely moves the skin" },
-            { id: "q1_d", text: "Variable pressure depending on the facial area" }
-          ],
-          correctOptionId: "q1_c"
-        },
-        {
-          id: "q2",
-          question: "Which movement direction is correct for facial lymphatic drainage?",
-          options: [
-            { id: "q2_a", text: "From the center of the face outward toward lymph nodes" },
-            { id: "q2_b", text: "From the outside of the face toward the nose" },
-            { id: "q2_c", text: "In circular motions all over the face" },
-            { id: "q2_d", text: "From top to bottom in straight lines" }
-          ],
-          correctOptionId: "q2_a"
-        },
-        {
-          id: "q3",
-          question: "Which of these is a contraindication for lymphatic drainage massage?",
-          options: [
-            { id: "q3_a", text: "Dehydrated skin" },
-            { id: "q3_b", text: "Mature skin" },
-            { id: "q3_c", text: "Active skin infection" },
-            { id: "q3_d", text: "Uneven skin tone" }
-          ],
-          correctOptionId: "q3_c"
-        }
-      ]
-    });
-
-  } catch (error) {
-    console.error("Error initializing data:", error);
-  }
-}
