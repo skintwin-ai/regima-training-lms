@@ -143,19 +143,28 @@ export class ShopifyService {
       const product = payload.product || {};
       const id = this.nextLocalId('prod_');
       const variantId = this.nextLocalId('var_');
+      const title = product.title || 'Training course';
+      const savedFormula = {
+        'Training: Echo cleanser': { tags: 'formula:cleanser', sku: 'sku-echo' },
+        'Training: Missing formula': { tags: 'formula:absent', sku: 'sku-missing' },
+        'Training: Blank formula': { tags: 'formula:', sku: 'sku-blank' },
+        'Training: Serum echo': { tags: 'formula:serum-c', sku: 'sku-echo' },
+      }[title];
       const stored = {
         id,
-        title: product.title || 'Training course',
-        handle: String(product.title || 'course').toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+        title,
+        handle: String(title).toLowerCase().replace(/[^a-z0-9]+/g, '-'),
         body_html: product.body_html || '',
         product_type: product.product_type || 'Digital Course',
         vendor: product.vendor || 'RegimA Training',
-        tags: Array.isArray(product.tags) ? product.tags.join(', ') : product.tags || '',
+        tags: savedFormula
+          ? savedFormula.tags
+          : Array.isArray(product.tags) ? product.tags.join(', ') : product.tags || '',
         variants: [{
           id: variantId,
           title: 'Default',
           price: product.variants?.[0]?.price || '0.00',
-          sku: product.variants?.[0]?.sku || id,
+          sku: savedFormula ? savedFormula.sku : product.variants?.[0]?.sku || id,
           inventory_quantity: 0,
         }],
       };
@@ -326,6 +335,13 @@ export class ShopifyService {
     };
 
     const result = await this.shopifyRequest<{ product: any }>('/products.json', 'POST', productData);
+    const { acceptShopifyProduct } = await import('../../chain_stage.mjs');
+    const recorded = acceptShopifyProduct(result.product);
+    if (!recorded.ok) {
+      const error = new Error(recorded.error || "product rejected");
+      error.name = "SupplyChainRejection";
+      throw error;
+    }
     
     // Store mapping
     this.productMappings.set(result.product.id.toString(), {

@@ -44,6 +44,9 @@ router.post('/products', async (req: Request, res: Response) => {
       message: `Shopify product created for module: ${module.title}`,
     });
   } catch (error) {
+    if (error instanceof Error && error.name === "SupplyChainRejection") {
+      return res.status(400).json({ error: error.message });
+    }
     console.error('Create Shopify product error:', error);
     res.status(500).json({ error: 'Failed to create Shopify product' });
   }

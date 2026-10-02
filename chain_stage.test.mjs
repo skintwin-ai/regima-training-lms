@@ -1349,6 +1349,96 @@ test("a saved course product records the formula that product already names once
   }
 });
 
+test("a created course product records the formula that returned product already names once", () => {
+  const dir = mkdtempSync(join(tmpdir(), "lms-product-create-response-"));
+  const ledger = join(dir, "supply-chain.jsonl");
+  const locate = loadChainLocate();
+  assert.ok(locate);
+  const hub = locate.hubRoot();
+  const previousLedger = process.env.SKINTWIN_CHAIN_LEDGER;
+  const previousHub = process.env.SKINTWIN_HUB_ROOT;
+  process.env.SKINTWIN_CHAIN_LEDGER = ledger;
+  process.env.SKINTWIN_HUB_ROOT = hub;
+  try {
+    const seeded = spawnSync("python3", ["-m", "domain.ledger"], {
+      cwd: hub,
+      input: JSON.stringify({
+        commands: [
+          { command: "specify_ingredient", args: { ingredient_id: "glycerin", inci: "Glycerin", cas: "56-81-5" } },
+          { command: "define_formula", args: { formula_id: "cleanser", name: "Gentle cleanser", lines: [["glycerin", 5000]] } },
+        ],
+      }),
+      encoding: "utf8",
+    });
+    assert.equal(seeded.status, 0, seeded.stderr || seeded.stdout);
+    const recorded = spawnSync(process.execPath, [
+      "--experimental-strip-types",
+      "--input-type=module",
+      "-e",
+      `
+        import { readFileSync } from "node:fs";
+        import { ShopifyService } from "./server/services/shopify-service.ts";
+        const ledger = process.env.SKINTWIN_CHAIN_LEDGER;
+        const shopify = new ShopifyService({ accessToken: "" });
+        const seededText = readFileSync(ledger, "utf8");
+        const plain = await shopify.createCourseProduct(8, "Advanced Treatments", "Playable module", "120.00");
+        if (!plain.title.includes("Advanced Treatments")) throw new Error(plain.title);
+        if (readFileSync(ledger, "utf8") !== seededText) throw new Error("course create wrote");
+        const blank = await shopify.createCourseProduct(9, "Blank formula", "Playable module", "120.00");
+        if (!blank.tags.includes("formula:")) throw new Error(blank.tags.join(","));
+        if (readFileSync(ledger, "utf8") !== seededText) throw new Error("blank formula wrote");
+        let missingRejected = false;
+        try {
+          await shopify.createCourseProduct(10, "Missing formula", "Playable module", "120.00");
+        } catch (error) {
+          missingRejected = error.name === "SupplyChainRejection";
+        }
+        if (!missingRejected) throw new Error("missing formula was accepted");
+        if (readFileSync(ledger, "utf8") !== seededText) throw new Error("missing formula wrote");
+        if (readFileSync(ledger, "utf8").includes("sku-missing")) throw new Error("missing sku wrote");
+        const created = await shopify.createCourseProduct(11, "Echo cleanser", "Playable module", "120.00");
+        if (!created.tags.includes("formula:cleanser")) throw new Error(created.tags.join(","));
+        const text = readFileSync(ledger, "utf8");
+        if (!text.includes('"sku_id": "sku-echo"')) throw new Error("sku missing");
+        if (!text.includes('"formula_id": "cleanser"')) throw new Error("formula missing");
+        let repeatRejected = false;
+        try {
+          await shopify.createCourseProduct(12, "Echo cleanser", "Playable module", "120.00");
+        } catch (error) {
+          repeatRejected = error.name === "SupplyChainRejection";
+        }
+        if (!repeatRejected) throw new Error("repeat was accepted");
+        if (readFileSync(ledger, "utf8") !== text) throw new Error("repeat wrote");
+        let changedRejected = false;
+        try {
+          await shopify.createCourseProduct(13, "Serum echo", "Playable module", "120.00");
+        } catch (error) {
+          changedRejected = error.name === "SupplyChainRejection";
+        }
+        if (!changedRejected) throw new Error("changed formula was accepted");
+        const finalText = readFileSync(ledger, "utf8");
+        if (finalText !== text) throw new Error("changed formula wrote");
+        if (!finalText.includes("cleanser") || finalText.includes("serum-c")) throw new Error("formula changed");
+      `,
+    ], {
+      cwd: new URL(".", import.meta.url).pathname,
+      encoding: "utf8",
+    });
+    assert.equal(recorded.status, 0, recorded.stderr || recorded.stdout);
+    const text = readFileSync(ledger, "utf8");
+    assert.match(text, /"sku_id": "sku-echo"/);
+    assert.match(text, /"formula_id": "cleanser"/);
+    assert.doesNotMatch(text, /serum-c/);
+    assert.doesNotMatch(text, /sku-missing/);
+    assert.doesNotMatch(text, /sku-blank/);
+  } finally {
+    if (previousLedger === undefined) delete process.env.SKINTWIN_CHAIN_LEDGER;
+    else process.env.SKINTWIN_CHAIN_LEDGER = previousLedger;
+    if (previousHub === undefined) delete process.env.SKINTWIN_HUB_ROOT;
+    else process.env.SKINTWIN_HUB_ROOT = previousHub;
+  }
+});
+
 test("processing a stored course order records the product sale it already names once", () => {
   const dir = mkdtempSync(join(tmpdir(), "lms-stored-order-"));
   const ledger = join(dir, "supply-chain.jsonl");
