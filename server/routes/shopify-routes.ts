@@ -345,11 +345,22 @@ router.post('/local/order', async (req: Request, res: Response) => {
     if (!moduleId || !userId) {
       return res.status(400).json({ error: 'moduleId and userId are required' });
     }
+    const { acceptCourseOrder } = await import('../../chain_stage.mjs');
+    const accepted = acceptCourseOrder({
+      moduleId,
+      userId,
+      course: req.body?.course || req.body?.title,
+      kit: req.body?.kit,
+    });
+    if (!accepted.ok) {
+      return res.status(400).json({ error: accepted.error });
+    }
     const shopifyService = getShopifyService();
     const result = await shopifyService.createPaidCourseOrder({
       email: email || 'demo@skintwin.ai',
       userId,
       moduleId,
+      title: req.body?.title,
     });
     res.json({
       success: true,

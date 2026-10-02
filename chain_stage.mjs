@@ -71,6 +71,68 @@ export function certifyPractitioner(args) {
   };
 }
 
+function positive(value, label) {
+  if (!Number.isInteger(value) || value < 1) {
+    throw new Error(`${label} must be a positive integer`);
+  }
+  return value;
+}
+
+export function courseOrderCommands(body) {
+  const moduleId = body?.moduleId;
+  const userId = body?.userId;
+  if (moduleId == null || userId == null || String(moduleId).trim() === "" || String(userId).trim() === "") {
+    throw new Error("course order requires a module and a practitioner");
+  }
+  const practitionerId = String(userId).trim();
+  const moduleKey = String(moduleId).trim();
+  const course = text(body.course || body.title || `module ${moduleKey}`, "course");
+  const commands = [
+    {
+      command: "certify_practitioner",
+      args: {
+        certificate_id: `course:${practitionerId}:${moduleKey}`,
+        practitioner_id: practitionerId,
+        course,
+      },
+    },
+  ];
+  const kit = body.kit == null ? [] : body.kit;
+  if (!Array.isArray(kit)) throw new Error("kit must be a list");
+  kit.forEach((item, index) => {
+    if (!item?.sku) return;
+    if (typeof item.location !== "string" || !Number.isInteger(item.milligrams)) {
+      throw new Error(`sku ${item.sku} requires location and milligrams`);
+    }
+    commands.push({
+      command: "fulfill",
+      args: {
+        fulfillment_id: `course:${practitionerId}:${moduleKey}:${index}:${item.sku}`,
+        sku_id: text(item.sku, "sku"),
+        location: text(item.location, "location"),
+        milligrams: positive(item.milligrams, "milligrams"),
+        kind: "treatment",
+        practitioner_id: practitionerId,
+      },
+    });
+  });
+  return commands;
+}
+
+export function acceptCourseOrder(body) {
+  let commands;
+  try {
+    commands = courseOrderCommands(body);
+  } catch (error) {
+    return { ok: false, error: error.message };
+  }
+  if (!useSharedLedger()) return { ok: false, error: "supply-chain hub is not present" };
+  const locate = loadChainLocate();
+  if (!locate) return { ok: false, error: "supply-chain hub is not present" };
+  const committed = locate.commitCommands(commands);
+  return committed.ok ? { ok: true, count: commands.length } : committed;
+}
+
 export function recordCertificate(body) {
   const moduleId = body?.moduleId;
   const userId = body?.userId;
