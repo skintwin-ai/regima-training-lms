@@ -349,7 +349,8 @@ router.post('/local/order', async (req: Request, res: Response) => {
     const accepted = acceptCourseOrder({
       moduleId,
       userId,
-      course: req.body?.course || req.body?.title,
+      course: req.body?.course,
+      title: req.body?.title,
       kit: req.body?.kit,
     });
     if (!accepted.ok) {

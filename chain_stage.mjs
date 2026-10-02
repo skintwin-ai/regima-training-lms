@@ -101,7 +101,7 @@ export function courseOrderCommands(body) {
   if (!moduleKey || !practitionerId) {
     throw new Error("course order requires a module and a practitioner");
   }
-  const course = text(body.course || body.title || `module ${moduleKey}`, "course");
+  const course = text(namedId(body, "course", "title") || `module ${moduleKey}`, "course");
   const commands = [
     {
       command: "certify_practitioner",
@@ -190,7 +190,7 @@ export function paidShopifyCourseCommands(order) {
     courses.push({
       moduleId,
       userId,
-      course: item.title || item.name || `module ${moduleId}`,
+      course: namedId(item, "title", "name") || `module ${moduleId}`,
     });
   }
   return courses.flatMap((course) => courseOrderCommands(course));

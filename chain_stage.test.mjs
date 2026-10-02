@@ -448,3 +448,111 @@ test("a processed shopify course order certifies each mapped module once", () =>
     else process.env.SKINTWIN_HUB_ROOT = previousHub;
   }
 });
+
+test("a course named by a blank course records the title once", () => {
+  const present = courseOrderCommands({
+    moduleId: 8,
+    userId: 1,
+    course: "Advanced Treatments",
+    title: "Clinic Retail",
+  });
+  assert.equal(present[0].args.certificate_id, "course:1:8");
+  assert.equal(present[0].args.course, "Advanced Treatments");
+  const fallen = courseOrderCommands({
+    moduleId: 8,
+    userId: 1,
+    course: "  ",
+    title: "Clinic Retail",
+  });
+  assert.equal(fallen[0].args.course, "Clinic Retail");
+  const unlabeled = courseOrderCommands({
+    moduleId: 8,
+    userId: 1,
+    course: "  ",
+    title: "  ",
+  });
+  assert.equal(unlabeled[0].args.course, "module 8");
+  const preferred = paidShopifyCourseCommands({
+    line_items: [{ sku: "REGIMA-COURSE-8", title: "Advanced Treatments", name: "Clinic Retail" }],
+    note_attributes: [{ name: "userId", value: "1" }],
+  });
+  assert.equal(preferred[0].args.course, "Advanced Treatments");
+  const named = paidShopifyCourseCommands({
+    line_items: [{ sku: "REGIMA-COURSE-8", title: "  ", name: "Clinic Retail" }],
+    note_attributes: [{ name: "userId", value: "1" }],
+  });
+  assert.equal(named[0].args.certificate_id, "course:1:8");
+  assert.equal(named[0].args.course, "Clinic Retail");
+  const moduleName = paidShopifyCourseCommands({
+    line_items: [{ sku: "REGIMA-COURSE-9", title: "  ", name: "  " }],
+    note_attributes: [{ name: "userId", value: "1" }],
+  });
+  assert.equal(moduleName[0].args.course, "module 9");
+  assert.equal(moduleName[0].args.certificate_id, "course:1:9");
+  const retail = paidShopifyCourseCommands({
+    line_items: [{ sku: "sku-cleanser", title: "  ", name: "Cleanser" }],
+    note_attributes: [{ name: "userId", value: "1" }],
+  });
+  assert.equal(retail.length, 0);
+  const noPractitioner = paidShopifyCourseCommands({
+    line_items: [{ sku: "REGIMA-COURSE-8", title: "  ", name: "Clinic Retail" }],
+  });
+  assert.equal(noPractitioner.length, 0);
+  const dir = mkdtempSync(join(tmpdir(), "lms-course-title-"));
+  const ledger = join(dir, "supply-chain.jsonl");
+  const locate = loadChainLocate();
+  assert.ok(locate);
+  const hub = locate.hubRoot();
+  const previousLedger = process.env.SKINTWIN_CHAIN_LEDGER;
+  const previousHub = process.env.SKINTWIN_HUB_ROOT;
+  process.env.SKINTWIN_CHAIN_LEDGER = ledger;
+  process.env.SKINTWIN_HUB_ROOT = hub;
+  try {
+    const missing = acceptCourseOrder({ course: "  ", title: "Clinic Retail" });
+    assert.equal(missing.ok, false);
+    assert.equal(existsSync(ledger), false);
+    const skipped = acceptPaidShopifyOrder({
+      line_items: [{ sku: "sku-cleanser", title: "  ", name: "Cleanser" }],
+      note_attributes: [{ name: "userId", value: "1" }],
+    });
+    assert.equal(skipped.ok, true);
+    assert.equal(skipped.count, 0);
+    assert.equal(existsSync(ledger), false);
+    const unnamed = acceptPaidShopifyOrder({
+      line_items: [{ sku: "REGIMA-COURSE-8", title: "  ", name: "Clinic Retail" }],
+    });
+    assert.equal(unnamed.ok, true);
+    assert.equal(unnamed.count, 0);
+    assert.equal(existsSync(ledger), false);
+    const certified = acceptCourseOrder({
+      moduleId: 8,
+      userId: 1,
+      course: "  ",
+      title: "Clinic Retail",
+    });
+    assert.equal(certified.ok, true);
+    assert.equal(certified.count, 1);
+    const recorded = readFileSync(ledger, "utf8");
+    assert.match(recorded, /Clinic Retail/);
+    assert.match(recorded, /course:1:8/);
+    const again = acceptCourseOrder({
+      moduleId: 8,
+      userId: 1,
+      course: "  ",
+      title: "Clinic Retail",
+    });
+    assert.equal(again.ok, false);
+    assert.equal(readFileSync(ledger, "utf8"), recorded);
+    const paidAgain = acceptPaidShopifyOrder({
+      line_items: [{ sku: "REGIMA-COURSE-8", title: "  ", name: "Clinic Retail" }],
+      note_attributes: [{ name: "userId", value: "1" }],
+    });
+    assert.equal(paidAgain.ok, false);
+    assert.equal(readFileSync(ledger, "utf8"), recorded);
+  } finally {
+    if (previousLedger === undefined) delete process.env.SKINTWIN_CHAIN_LEDGER;
+    else process.env.SKINTWIN_CHAIN_LEDGER = previousLedger;
+    if (previousHub === undefined) delete process.env.SKINTWIN_HUB_ROOT;
+    else process.env.SKINTWIN_HUB_ROOT = previousHub;
+  }
+});
