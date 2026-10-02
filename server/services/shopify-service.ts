@@ -519,7 +519,7 @@ export class ShopifyService {
    */
   async recordStoredOrder(
     orderId: string,
-  ): Promise<{ ok: true; order: ShopifyOrder } | { ok: false; error: string } | null> {
+  ): Promise<{ ok: true; order: ShopifyOrder; returned: boolean } | { ok: false; error: string } | null> {
     let raw: any;
     try {
       const result = await this.shopifyRequest<{ order: any }>(`/orders/${orderId}.json`);
@@ -527,12 +527,39 @@ export class ShopifyService {
     } catch {
       return null;
     }
-    const { acceptPaidShopifyOrder } = await import('../../chain_stage.mjs');
+    const { acceptPaidShopifyOrder, shopifyOrderReturned } = await import('../../chain_stage.mjs');
     const recorded = acceptPaidShopifyOrder(raw);
     if (!recorded.ok) {
       return { ok: false, error: recorded.error || "order rejected" };
     }
-    return { ok: true, order: this.transformOrder(raw) };
+    return { ok: true, order: this.transformOrder(raw), returned: shopifyOrderReturned(raw) };
+  }
+
+  /**
+   * Record a stored order, then certify its course when that order is still a sale.
+   * A cancelled, refunded, voided, or restocked order returns the named sale and does not certify.
+   */
+  async processStoredOrder(
+    orderId: string,
+    userId: number,
+  ): Promise<
+    | { ok: true; order: ShopifyOrder; enrollments: ShopifyEnrollment[]; returned: boolean }
+    | { ok: false; error: string }
+    | null
+  > {
+    const stored = await this.recordStoredOrder(orderId);
+    if (!stored) return null;
+    if (!stored.ok) return stored;
+    if (stored.returned) {
+      return { ok: true, order: stored.order, enrollments: [], returned: true };
+    }
+    const { acceptShopifyCourses } = await import('../../chain_stage.mjs');
+    const accepted = acceptShopifyCourses(this.courseOrdersFor(stored.order, Number(userId)));
+    if (!accepted.ok) {
+      return { ok: false, error: accepted.error || "course rejected" };
+    }
+    const enrollments = await this.processOrderForEnrollment(stored.order, userId);
+    return { ok: true, order: stored.order, enrollments, returned: false };
   }
 
   /**

@@ -1727,3 +1727,131 @@ test("a paid order that is already cancelled returns the sale it names", () => {
     else process.env.SKINTWIN_HUB_ROOT = previousHub;
   }
 });
+
+test("processing a cancelled stored course order does not certify the practitioner", () => {
+  const dir = mkdtempSync(join(tmpdir(), "lms-stored-cancel-"));
+  const ledger = join(dir, "supply-chain.jsonl");
+  const locate = loadChainLocate();
+  assert.ok(locate);
+  const hub = locate.hubRoot();
+  const previousLedger = process.env.SKINTWIN_CHAIN_LEDGER;
+  const previousHub = process.env.SKINTWIN_HUB_ROOT;
+  process.env.SKINTWIN_CHAIN_LEDGER = ledger;
+  process.env.SKINTWIN_HUB_ROOT = hub;
+  try {
+    const seeded = spawnSync("python3", ["-m", "domain.ledger"], {
+      cwd: hub,
+      input: JSON.stringify({
+        commands: [
+          { command: "specify_ingredient", args: { ingredient_id: "glycerin", inci: "Glycerin", cas: "56-81-5" } },
+          { command: "qualify_supplier", args: { qualification_id: "qual-glycerin", supplier_name: "Inland Humectants", ingredient_id: "glycerin" } },
+          { command: "receive_lot", args: { lot_id: "lot-glycerin", ingredient_id: "glycerin", qualification_id: "qual-glycerin", milligrams: 5000 } },
+          { command: "define_formula", args: { formula_id: "cleanser", name: "Gentle cleanser", lines: [["glycerin", 5000]] } },
+          { command: "catalog_sku", args: { sku_id: "sku-cleanser", formula_id: "cleanser", name: "Gentle cleanser" } },
+          { command: "manufacture", args: { batch_id: "batch-cleanser", sku_id: "sku-cleanser", units: 1, allocations: [["glycerin", "lot-glycerin", 5000]] } },
+          { command: "transfer", args: { transfer_id: "xfer-cape-town", sku_id: "sku-cleanser", batch_id: "batch-cleanser", source: "plant", destination: "cape-town", milligrams: 5000 } },
+        ],
+      }),
+      encoding: "utf8",
+    });
+    assert.equal(seeded.status, 0, seeded.stderr || seeded.stdout);
+    const recorded = spawnSync(process.execPath, [
+      "--experimental-strip-types",
+      "--input-type=module",
+      "-e",
+      `
+        import { readFileSync } from "node:fs";
+        import { ShopifyService } from "./server/services/shopify-service.ts";
+        const ledger = process.env.SKINTWIN_CHAIN_LEDGER;
+        const shopify = new ShopifyService({ accessToken: "" });
+        const seededText = readFileSync(ledger, "utf8");
+        const product = await shopify.createCourseProduct(8, "Advanced Treatments", "Playable module", "0.00");
+        if (readFileSync(ledger, "utf8") !== seededText) throw new Error("course create wrote");
+        shopify.localOrders.set("ord-cancel", {
+          id: "ord-cancel",
+          name: "#cancel",
+          email: "ada@regima.training",
+          cancelled_at: "2026-10-02T00:00:00Z",
+          financial_status: "paid",
+          line_items: [{
+            id: "li-cancel",
+            product_id: product.id,
+            sku: "REGIMA-COURSE-8",
+            title: "Advanced Treatments",
+            quantity: 1,
+            price: "0.00",
+          }],
+        });
+        const cancelled = await shopify.processStoredOrder("ord-cancel", 7);
+        if (!cancelled || !cancelled.ok) throw new Error(cancelled && cancelled.error);
+        if (!cancelled.returned) throw new Error("cancelled order was treated as a sale");
+        if (cancelled.enrollments.length !== 0) throw new Error("cancelled order enrolled");
+        if (readFileSync(ledger, "utf8") !== seededText) throw new Error("cancelled order wrote");
+        shopify.localOrders.set("ord-paid", {
+          id: "ord-paid",
+          name: "#paid",
+          email: "ada@regima.training",
+          financial_status: "paid",
+          line_items: [{
+            id: "li-paid",
+            product_id: product.id,
+            sku: "REGIMA-COURSE-8",
+            title: "Advanced Treatments",
+            quantity: 1,
+            price: "0.00",
+          }],
+        });
+        const paid = await shopify.processStoredOrder("ord-paid", 7);
+        if (!paid || !paid.ok) throw new Error(paid && paid.error);
+        if (paid.returned) throw new Error("paid order was returned");
+        if (paid.enrollments.length !== 1) throw new Error("paid order did not enroll");
+        const certified = readFileSync(ledger, "utf8");
+        if (!certified.includes("course:7:8")) throw new Error("certificate missing");
+        const again = await shopify.processStoredOrder("ord-paid", 7);
+        if (!again || again.ok) throw new Error("repeat was accepted");
+        if (readFileSync(ledger, "utf8") !== certified) throw new Error("repeat wrote");
+        shopify.localOrders.set("ord-sale", {
+          id: "ord-sale",
+          name: "  ",
+          email: "ada@regima.training",
+          financial_status: "paid",
+          line_items: [{
+            id: "li-sale",
+            sku: "sku-cleanser",
+            title: "Gentle cleanser",
+            location: "cape-town",
+            milligrams: 2000,
+            quantity: 1,
+            price: "25.00",
+          }],
+        });
+        const sold = await shopify.processStoredOrder("ord-sale", 7);
+        if (!sold || !sold.ok) throw new Error(sold && sold.error);
+        const drawn = readFileSync(ledger, "utf8");
+        if (!drawn.includes('"fulfillment_id": "ord-sale:0:sku-cleanser"')) throw new Error("sale missing");
+        shopify.localOrders.get("ord-sale").cancelled_at = "2026-10-02T00:00:00Z";
+        const returned = await shopify.processStoredOrder("ord-sale", 7);
+        if (!returned || !returned.ok) throw new Error(returned && returned.error);
+        if (!returned.returned) throw new Error("cancelled sale stayed drawn");
+        if (returned.enrollments.length !== 0) throw new Error("cancelled sale enrolled");
+        const text = readFileSync(ledger, "utf8");
+        if (!text.includes("return:ord-sale:0:sku-cleanser")) throw new Error("return missing");
+        if (text.includes("return:xfer-cape-town")) throw new Error("distribution returned");
+        if ((text.match(/course:7:8/g) || []).length !== 1) throw new Error("certificate changed");
+      `,
+    ], {
+      cwd: new URL(".", import.meta.url).pathname,
+      encoding: "utf8",
+    });
+    assert.equal(recorded.status, 0, recorded.stderr || recorded.stdout);
+    const text = readFileSync(ledger, "utf8");
+    assert.match(text, /return:ord-sale:0:sku-cleanser/);
+    assert.match(text, /course:7:8/);
+    assert.doesNotMatch(text, /return:xfer-cape-town/);
+  } finally {
+    if (previousLedger === undefined) delete process.env.SKINTWIN_CHAIN_LEDGER;
+    else process.env.SKINTWIN_CHAIN_LEDGER = previousLedger;
+    if (previousHub === undefined) delete process.env.SKINTWIN_HUB_ROOT;
+    else process.env.SKINTWIN_HUB_ROOT = previousHub;
+  }
+});

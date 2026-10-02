@@ -317,7 +317,7 @@ export function paidShopifyCourseCommands(order) {
   ];
 }
 
-function shopifyOrderReturned(order) {
+export function shopifyOrderReturned(order) {
   if (!order || typeof order !== "object") return false;
   if (order.cancelled_at || order.cancel_reason) return true;
   const financial = String(order.financial_status || "").trim().toLowerCase();
