@@ -342,6 +342,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         userId: req.session.userId
       });
 
+      const { handleStage } = await import("../chain_stage.mjs");
+      const hub = process.env.SKINTWIN_HUB_ROOT || "/agent/repos/skintwin-ecosystem-design";
+      process.env.SKINTWIN_HUB_ROOT ||= hub;
+      process.env.SKINTWIN_CHAIN_LEDGER ||= `${hub}/var/supply-chain.jsonl`;
+      const accepted = handleStage({
+        command: "certify_practitioner",
+        args: {
+          certificate_id: String(certificateData.moduleId),
+          practitioner_id: String(req.session.userId),
+          course: req.body?.course || String(certificateData.moduleId),
+        },
+      });
+      if (!accepted.ok) {
+        return res.status(400).json({ message: accepted.error });
+      }
+
       const certificate = await storage.createCertificate(certificateData);
       const user = await storage.getUser(req.session.userId);
       const module = await storage.getModule(certificateData.moduleId);
