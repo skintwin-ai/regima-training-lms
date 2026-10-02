@@ -4,7 +4,7 @@ import { existsSync, mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { acceptCourseOrder, acceptPaidShopifyOrder, acceptPaidShopifyReturn, acceptShopifyCourses, courseOrderCommands, handleStage, loadChainLocate, paidShopifyCourseCommands, paidShopifyReturnCommands, recordCertificate, shopifyCourseCommands } from "./chain_stage.mjs";
+import { acceptCourseOrder, acceptPaidShopifyOrder, acceptPaidShopifyReturn, acceptShopifyCourses, acceptShopifyProduct, courseOrderCommands, handleStage, loadChainLocate, paidShopifyCourseCommands, paidShopifyReturnCommands, recordCertificate, shopifyCatalogCommands, shopifyCourseCommands } from "./chain_stage.mjs";
 
 test("certificate command accepts a practitioner course", () => {
   const result = handleStage({
@@ -1026,6 +1026,127 @@ test("a cancelled course order returns the product sale it already names once", 
     assert.equal(again.ok, false);
     assert.equal(readFileSync(ledger, "utf8"), recorded);
     assert.match(sold, /9:1:sku-cleanser/);
+  } finally {
+    if (previousLedger === undefined) delete process.env.SKINTWIN_CHAIN_LEDGER;
+    else process.env.SKINTWIN_CHAIN_LEDGER = previousLedger;
+    if (previousHub === undefined) delete process.env.SKINTWIN_HUB_ROOT;
+    else process.env.SKINTWIN_HUB_ROOT = previousHub;
+  }
+});
+
+test("a course product update records the formula it already names once", () => {
+  const course = shopifyCatalogCommands({
+    title: "Training: Advanced Treatments",
+    tags: "training, course, digital, module-8",
+    variants: [{ sku: "REGIMA-COURSE-8" }],
+  });
+  assert.equal(course.length, 0);
+  const blankTag = shopifyCatalogCommands({
+    title: "Gentle cleanser",
+    tags: "formula:",
+    variants: [{ sku: "sku-cleanser" }],
+  });
+  assert.equal(blankTag.length, 0);
+  const preferred = shopifyCatalogCommands({
+    title: "  ",
+    name: " Gentle cleanser ",
+    formulaId: " serum-c ",
+    formula_id: "cleanser",
+    tags: "formula:other",
+    variants: [{ sku: "  ", sku_id: " sku-cleanser " }, { sku: "sku-cleanser" }],
+  });
+  assert.equal(preferred.length, 1);
+  assert.equal(preferred[0].args.sku_id, "sku-cleanser");
+  assert.equal(preferred[0].args.formula_id, "serum-c");
+  assert.equal(preferred[0].args.name, "Gentle cleanser");
+  const tagged = shopifyCatalogCommands({
+    title: " ",
+    name: "Gentle cleanser",
+    tags: "Training, Formula: cleanser ",
+    variants: [{ sku: " " }],
+  });
+  assert.equal(tagged[0].args.sku_id, "Gentle cleanser");
+  assert.equal(tagged[0].args.formula_id, "cleanser");
+  const metafield = shopifyCatalogCommands({
+    title: "Gentle cleanser",
+    metafields: [{ key: "formula_id", value: " cleanser " }],
+    variants: [{ sku: "sku-cleanser" }],
+  });
+  assert.equal(metafield[0].args.formula_id, "cleanser");
+  const variantFormula = shopifyCatalogCommands({
+    title: "Gentle cleanser",
+    tags: "training",
+    variants: [
+      { sku: "sku-toner", title: "Toner" },
+      { sku: " sku-cleanser ", tags: "formula:cleanser" },
+    ],
+  });
+  assert.equal(variantFormula.length, 1);
+  assert.equal(variantFormula[0].args.sku_id, "sku-cleanser");
+  assert.equal(variantFormula[0].args.formula_id, "cleanser");
+  assert.throws(
+    () => shopifyCatalogCommands({ tags: "formula:cleanser", variants: [{ sku: "sku-cleanser" }] }),
+    /name is required/,
+  );
+  const dir = mkdtempSync(join(tmpdir(), "lms-product-formula-"));
+  const ledger = join(dir, "supply-chain.jsonl");
+  const locate = loadChainLocate();
+  assert.ok(locate);
+  const hub = locate.hubRoot();
+  const previousLedger = process.env.SKINTWIN_CHAIN_LEDGER;
+  const previousHub = process.env.SKINTWIN_HUB_ROOT;
+  process.env.SKINTWIN_CHAIN_LEDGER = ledger;
+  process.env.SKINTWIN_HUB_ROOT = hub;
+  const product = {
+    title: " ",
+    name: "Gentle cleanser",
+    tags: "formula:cleanser",
+    variants: [{ sku: " sku-cleanser " }],
+  };
+  try {
+    const seeded = spawnSync("python3", ["-m", "domain.ledger"], {
+      cwd: hub,
+      input: JSON.stringify({
+        commands: [
+          { command: "specify_ingredient", args: { ingredient_id: "glycerin", inci: "Glycerin", cas: "56-81-5" } },
+          { command: "define_formula", args: { formula_id: "cleanser", name: "Gentle cleanser", lines: [["glycerin", 5000]] } },
+        ],
+      }),
+      encoding: "utf8",
+    });
+    assert.equal(seeded.status, 0, seeded.stderr || seeded.stdout);
+    const seededText = readFileSync(ledger, "utf8");
+    const skipped = acceptShopifyProduct({
+      title: "Training: Advanced Treatments",
+      tags: "training, course",
+      variants: [{ sku: "REGIMA-COURSE-8" }],
+    });
+    assert.equal(skipped.ok, true);
+    assert.equal(skipped.count, 0);
+    assert.equal(readFileSync(ledger, "utf8"), seededText);
+    const missing = acceptShopifyProduct({
+      ...product,
+      tags: "formula:missing",
+    });
+    assert.equal(missing.ok, false);
+    assert.equal(readFileSync(ledger, "utf8"), seededText);
+    const recordedProduct = acceptShopifyProduct(product);
+    assert.equal(recordedProduct.ok, true, recordedProduct.error);
+    assert.equal(recordedProduct.count, 1);
+    const recorded = readFileSync(ledger, "utf8");
+    assert.match(recorded, /sku-cleanser/);
+    assert.match(recorded, /"formula_id": "cleanser"/);
+    const again = acceptShopifyProduct(product);
+    assert.equal(again.ok, false);
+    assert.equal(readFileSync(ledger, "utf8"), recorded);
+    const changed = acceptShopifyProduct({
+      ...product,
+      tags: "formula:serum-c",
+    });
+    assert.equal(changed.ok, false);
+    assert.equal(readFileSync(ledger, "utf8"), recorded);
+    assert.match(readFileSync(ledger, "utf8"), /cleanser/);
+    assert.doesNotMatch(readFileSync(ledger, "utf8"), /serum-c/);
   } finally {
     if (previousLedger === undefined) delete process.env.SKINTWIN_CHAIN_LEDGER;
     else process.env.SKINTWIN_CHAIN_LEDGER = previousLedger;

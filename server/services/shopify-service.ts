@@ -716,6 +716,11 @@ export class ShopifyService {
    * Handle product update webhook
    */
   private async handleProductUpdate(productData: any): Promise<{ success: boolean; message: string }> {
+    const { acceptShopifyProduct } = await import('../../chain_stage.mjs');
+    const recorded = acceptShopifyProduct(productData);
+    if (!recorded.ok) {
+      return { success: false, message: recorded.error };
+    }
     const product = this.transformProduct(productData);
     console.log(`Shopify product updated: ${product.title}`);
     return { success: true, message: `Product ${product.title} updated` };

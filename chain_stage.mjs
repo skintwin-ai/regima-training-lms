@@ -337,6 +337,82 @@ export function acceptPaidShopifyReturn(order) {
   return commitCourseCommands(() => paidShopifyReturnCommands(order), true);
 }
 
+function formulaFromShopify(product) {
+  if (!product || typeof product !== "object") return "";
+  const direct = namedId(product, "formulaId", "formula_id");
+  if (direct) return direct;
+  const metafields = Array.isArray(product.metafields) ? product.metafields : [];
+  for (const field of metafields) {
+    if (!field || typeof field !== "object") continue;
+    if (field.key !== "formula_id" && field.key !== "formulaId") continue;
+    if (typeof field.value === "string" && field.value.trim()) return field.value.trim();
+  }
+  let tags = product.tags;
+  if (typeof tags === "string") tags = tags.split(",");
+  if (!Array.isArray(tags)) return "";
+  for (const tag of tags) {
+    const value = String(tag).trim();
+    const marker = "formula:";
+    if (!value.toLowerCase().startsWith(marker)) continue;
+    const formula = value.slice(marker.length).trim();
+    if (formula) return formula;
+  }
+  return "";
+}
+
+function catalogName(product) {
+  return text(namedId(product, "title", "name"), "name");
+}
+
+function catalogSkus(product, name) {
+  const variants = Array.isArray(product.variants) ? product.variants : [];
+  const skus = [];
+  const seen = new Set();
+  for (const variant of variants) {
+    if (!variant || typeof variant !== "object") continue;
+    const sku = namedKitSku(variant);
+    if (!sku || seen.has(sku)) continue;
+    seen.add(sku);
+    skus.push(sku);
+  }
+  if (skus.length > 0) return skus;
+  return [text(namedKitSku(product) || name, "sku")];
+}
+
+export function shopifyCatalogCommands(product) {
+  if (!product || typeof product !== "object") return [];
+  const formulaId = formulaFromShopify(product);
+  if (formulaId) {
+    const name = catalogName(product);
+    return catalogSkus(product, name).map((sku) => ({
+      command: "catalog_sku",
+      args: { sku_id: sku, formula_id: formulaId, name },
+    }));
+  }
+  const variants = Array.isArray(product.variants) ? product.variants : [];
+  const named = [];
+  const seen = new Set();
+  for (const variant of variants) {
+    if (!variant || typeof variant !== "object") continue;
+    const sku = namedKitSku(variant);
+    if (!sku || seen.has(sku)) continue;
+    const variantFormula = formulaFromShopify(variant);
+    if (!variantFormula) continue;
+    seen.add(sku);
+    named.push([sku, variantFormula]);
+  }
+  if (named.length === 0) return [];
+  const name = catalogName(product);
+  return named.map(([sku, variantFormula]) => ({
+    command: "catalog_sku",
+    args: { sku_id: sku, formula_id: variantFormula, name },
+  }));
+}
+
+export function acceptShopifyProduct(product) {
+  return commitCourseCommands(() => shopifyCatalogCommands(product), true);
+}
+
 export function shopifyCourseCommands(courses) {
   if (!Array.isArray(courses)) throw new Error("courses are required");
   return courses.flatMap((course) => courseOrderCommands(course));
