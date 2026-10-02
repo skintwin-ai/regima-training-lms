@@ -1545,3 +1545,81 @@ test("processing a stored course order records the product sale it already names
     else process.env.SKINTWIN_HUB_ROOT = previousHub;
   }
 });
+
+test("a cancelled course order returns the sale it already recorded once", () => {
+  const omitted = { id: 9, email: "ada@regima.training", line_items: [{ sku: "REGIMA-COURSE-8", title: "Advanced Treatments" }] };
+  const absent = mkdtempSync(join(tmpdir(), "lms-omit-return-absent-"));
+  const previousLedger = process.env.SKINTWIN_CHAIN_LEDGER;
+  const previousHub = process.env.SKINTWIN_HUB_ROOT;
+  process.env.SKINTWIN_CHAIN_LEDGER = join(absent, "supply-chain.jsonl");
+  try {
+    assert.deepEqual(paidShopifyReturnCommands(omitted), []);
+    assert.equal(acceptPaidShopifyReturn(omitted).count, 0);
+  } finally {
+    if (previousLedger === undefined) delete process.env.SKINTWIN_CHAIN_LEDGER;
+    else process.env.SKINTWIN_CHAIN_LEDGER = previousLedger;
+    if (previousHub === undefined) delete process.env.SKINTWIN_HUB_ROOT;
+    else process.env.SKINTWIN_HUB_ROOT = previousHub;
+  }
+
+  const dir = mkdtempSync(join(tmpdir(), "lms-omit-return-"));
+  const ledger = join(dir, "supply-chain.jsonl");
+  const locate = loadChainLocate();
+  assert.ok(locate);
+  const hub = locate.hubRoot();
+  process.env.SKINTWIN_CHAIN_LEDGER = ledger;
+  process.env.SKINTWIN_HUB_ROOT = hub;
+  const order = {
+    name: "  ",
+    id: 9,
+    email: "ada@regima.training",
+    line_items: [
+      { sku: "REGIMA-COURSE-8", title: "Advanced Treatments" },
+      { sku_id: "sku-cleanser", location: "cape-town", milligrams: 2000, kind: "treatment" },
+    ],
+  };
+  try {
+    const seeded = spawnSync("python3", ["-m", "domain.ledger"], {
+      cwd: hub,
+      input: JSON.stringify({
+        commands: [
+          { command: "specify_ingredient", args: { ingredient_id: "glycerin", inci: "Glycerin", cas: "56-81-5" } },
+          { command: "qualify_supplier", args: { qualification_id: "qual-glycerin", supplier_name: "Inland Humectants", ingredient_id: "glycerin" } },
+          { command: "receive_lot", args: { lot_id: "lot-glycerin", ingredient_id: "glycerin", qualification_id: "qual-glycerin", milligrams: 5000 } },
+          { command: "define_formula", args: { formula_id: "cleanser", name: "Gentle cleanser", lines: [["glycerin", 5000]] } },
+          { command: "catalog_sku", args: { sku_id: "sku-cleanser", formula_id: "cleanser", name: "Gentle cleanser" } },
+          { command: "manufacture", args: { batch_id: "batch-cleanser", sku_id: "sku-cleanser", units: 1, allocations: [["glycerin", "lot-glycerin", 5000]] } },
+          { command: "transfer", args: { transfer_id: "xfer-cape-town", sku_id: "sku-cleanser", batch_id: "batch-cleanser", source: "plant", destination: "cape-town", milligrams: 5000 } },
+        ],
+      }),
+      encoding: "utf8",
+    });
+    assert.equal(seeded.status, 0, seeded.stderr || seeded.stdout);
+    const paid = acceptPaidShopifyOrder(order);
+    assert.equal(paid.ok, true, paid.error);
+    const commands = paidShopifyReturnCommands(omitted);
+    assert.equal(commands.length, 1);
+    assert.equal(commands[0].args.return_id, "return:9:1:sku-cleanser");
+    assert.equal(commands[0].args.fulfillment_id, "9:1:sku-cleanser");
+    const returned = acceptPaidShopifyReturn(omitted);
+    assert.equal(returned.ok, true, returned.error);
+    assert.equal(returned.count, 1);
+    const recorded = readFileSync(ledger, "utf8");
+    assert.match(recorded, /return:9:1:sku-cleanser/);
+    assert.doesNotMatch(recorded, /return:xfer-cape-town/);
+    assert.doesNotMatch(recorded, /return:course:/);
+    const again = acceptPaidShopifyReturn(omitted);
+    assert.equal(again.ok, true);
+    assert.equal(again.count, 0);
+    assert.equal(readFileSync(ledger, "utf8"), recorded);
+    const other = acceptPaidShopifyReturn({ id: 19, line_items: [] });
+    assert.equal(other.ok, true);
+    assert.equal(other.count, 0);
+    assert.equal(readFileSync(ledger, "utf8"), recorded);
+  } finally {
+    if (previousLedger === undefined) delete process.env.SKINTWIN_CHAIN_LEDGER;
+    else process.env.SKINTWIN_CHAIN_LEDGER = previousLedger;
+    if (previousHub === undefined) delete process.env.SKINTWIN_HUB_ROOT;
+    else process.env.SKINTWIN_HUB_ROOT = previousHub;
+  }
+});

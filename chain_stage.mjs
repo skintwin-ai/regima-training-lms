@@ -321,16 +321,56 @@ export function acceptPaidShopifyOrder(order) {
   return commitCourseCommands(() => paidShopifyCourseCommands(order), true);
 }
 
+function recordedSaleReturns(orderId) {
+  if (!orderId) return [];
+  const raw = process.env.SKINTWIN_CHAIN_LEDGER;
+  if (!raw || !existsSync(raw)) return [];
+  const prefix = `${orderId}:`;
+  const fulfillments = new Map();
+  const returns = new Map();
+  for (const line of readFileSync(raw, "utf8").split("\n")) {
+    if (!line.trim()) continue;
+    const record = JSON.parse(line);
+    const args = record.args || {};
+    if (record.command === "fulfill" && typeof args.fulfillment_id === "string") {
+      const fulfillmentId = args.fulfillment_id;
+      if (!fulfillmentId.startsWith(prefix)) continue;
+      const rest = fulfillmentId.slice(prefix.length);
+      const split = rest.indexOf(":");
+      if (split <= 0 || !/^\d+$/.test(rest.slice(0, split))) continue;
+      fulfillments.set(fulfillmentId, fulfillmentId);
+    }
+    if (record.command === "return_sale" && typeof args.return_id === "string") {
+      returns.set(args.return_id, args.fulfillment_id);
+    }
+  }
+  const commands = [];
+  for (const fulfillmentId of fulfillments.values()) {
+    const returnId = `return:${fulfillmentId}`;
+    if (!returns.has(returnId)) {
+      commands.push({
+        command: "return_sale",
+        args: { return_id: returnId, fulfillment_id: fulfillmentId },
+      });
+      continue;
+    }
+    if (returns.get(returnId) !== fulfillmentId) throw new Error("id already exists");
+  }
+  return commands;
+}
+
 export function paidShopifyReturnCommands(order) {
   if (!order || typeof order !== "object") return [];
   const orderUser = namedOrderValue(order, ["user_id", "userId", "practitioner_id"]) || orderEmail(order);
-  return shopifyProductSaleCommands(order, orderUser).map((command) => ({
+  const named = shopifyProductSaleCommands(order, orderUser).map((command) => ({
     command: "return_sale",
     args: {
       return_id: `return:${command.args.fulfillment_id}`,
       fulfillment_id: command.args.fulfillment_id,
     },
   }));
+  if (named.length > 0) return named;
+  return recordedSaleReturns(orderLabel(order));
 }
 
 export function acceptPaidShopifyReturn(order) {
