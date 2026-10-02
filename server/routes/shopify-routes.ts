@@ -394,6 +394,12 @@ router.post('/orders/:orderId/process', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Order not found' });
     }
 
+    const { acceptShopifyCourses } = await import('../../chain_stage.mjs');
+    const accepted = acceptShopifyCourses(shopifyService.courseOrdersFor(order, Number(userId)));
+    if (!accepted.ok) {
+      return res.status(400).json({ error: accepted.error });
+    }
+
     const enrollments = await shopifyService.processOrderForEnrollment(order, userId);
 
     res.json({

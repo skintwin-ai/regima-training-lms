@@ -120,12 +120,26 @@ export function courseOrderCommands(body) {
 }
 
 export function acceptCourseOrder(body) {
+  return commitCourseCommands(() => courseOrderCommands(body));
+}
+
+export function shopifyCourseCommands(courses) {
+  if (!Array.isArray(courses)) throw new Error("courses are required");
+  return courses.flatMap((course) => courseOrderCommands(course));
+}
+
+export function acceptShopifyCourses(courses) {
+  return commitCourseCommands(() => shopifyCourseCommands(courses), true);
+}
+
+function commitCourseCommands(build, allowEmpty = false) {
   let commands;
   try {
-    commands = courseOrderCommands(body);
+    commands = build();
   } catch (error) {
     return { ok: false, error: error.message };
   }
+  if (commands.length === 0 && allowEmpty) return { ok: true, count: 0 };
   if (!useSharedLedger()) return { ok: false, error: "supply-chain hub is not present" };
   const locate = loadChainLocate();
   if (!locate) return { ok: false, error: "supply-chain hub is not present" };

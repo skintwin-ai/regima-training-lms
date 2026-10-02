@@ -4,7 +4,7 @@ import { existsSync, mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { acceptCourseOrder, courseOrderCommands, handleStage, loadChainLocate } from "./chain_stage.mjs";
+import { acceptCourseOrder, acceptShopifyCourses, courseOrderCommands, handleStage, loadChainLocate, shopifyCourseCommands } from "./chain_stage.mjs";
 
 test("certificate command accepts a practitioner course", () => {
   const result = handleStage({
@@ -131,6 +131,49 @@ test("a paid course draws the practice kit from outlet stock", () => {
     const recorded = readFileSync(ledger, "utf8");
     assert.match(recorded, /course:1:8/);
     assert.match(recorded, /course:1:8:0:sku-cleanser/);
+  } finally {
+    if (previousLedger === undefined) delete process.env.SKINTWIN_CHAIN_LEDGER;
+    else process.env.SKINTWIN_CHAIN_LEDGER = previousLedger;
+    if (previousHub === undefined) delete process.env.SKINTWIN_HUB_ROOT;
+    else process.env.SKINTWIN_HUB_ROOT = previousHub;
+  }
+});
+
+test("a processed shopify course order certifies each mapped module once", () => {
+  assert.equal(shopifyCourseCommands([]).length, 0);
+  const commands = shopifyCourseCommands([
+    { moduleId: 8, userId: 1, course: "Advanced Treatments" },
+    { moduleId: 9, userId: 1, course: "Clinic Retail" },
+  ]);
+  assert.equal(commands.length, 2);
+  assert.equal(commands[0].args.certificate_id, "course:1:8");
+  assert.equal(commands[1].args.certificate_id, "course:1:9");
+  const dir = mkdtempSync(join(tmpdir(), "lms-shopify-course-"));
+  const ledger = join(dir, "supply-chain.jsonl");
+  const locate = loadChainLocate();
+  assert.ok(locate);
+  const hub = locate.hubRoot();
+  const previousLedger = process.env.SKINTWIN_CHAIN_LEDGER;
+  const previousHub = process.env.SKINTWIN_HUB_ROOT;
+  process.env.SKINTWIN_CHAIN_LEDGER = ledger;
+  process.env.SKINTWIN_HUB_ROOT = hub;
+  try {
+    const skipped = acceptShopifyCourses([]);
+    assert.equal(skipped.ok, true);
+    assert.equal(skipped.count, 0);
+    assert.equal(existsSync(ledger), false);
+    const certified = acceptShopifyCourses([
+      { moduleId: 8, userId: 1, course: "Advanced Treatments" },
+    ]);
+    assert.equal(certified.ok, true);
+    assert.equal(certified.count, 1);
+    const recorded = readFileSync(ledger, "utf8");
+    assert.match(recorded, /course:1:8/);
+    const again = acceptShopifyCourses([
+      { moduleId: 8, userId: 1, course: "Advanced Treatments" },
+    ]);
+    assert.equal(again.ok, false);
+    assert.equal(readFileSync(ledger, "utf8"), recorded);
   } finally {
     if (previousLedger === undefined) delete process.env.SKINTWIN_CHAIN_LEDGER;
     else process.env.SKINTWIN_CHAIN_LEDGER = previousLedger;

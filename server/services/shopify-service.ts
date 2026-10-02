@@ -524,6 +524,14 @@ export class ShopifyService {
   /**
    * Process order for course enrollment
    */
+  courseOrdersFor(order: ShopifyOrder, userId: number) {
+    return order.lineItems.flatMap((item) => {
+      const mapping = this.productMappings.get(item.productId);
+      if (!mapping) return [];
+      return [{ moduleId: mapping.moduleId, userId, course: item.title }];
+    });
+  }
+
   async processOrderForEnrollment(
     order: ShopifyOrder,
     userId: number
