@@ -123,6 +123,67 @@ export function acceptCourseOrder(body) {
   return commitCourseCommands(() => courseOrderCommands(body));
 }
 
+function attributeValue(entries, names) {
+  if (!Array.isArray(entries)) return "";
+  const wanted = new Set(names.map((name) => name.toLowerCase()));
+  for (const prop of entries) {
+    const name = String(prop?.name ?? prop?.key ?? "").trim().toLowerCase();
+    if (!wanted.has(name)) continue;
+    const value = prop?.value;
+    if (value == null) continue;
+    const textValue = String(value).trim();
+    if (textValue) return textValue;
+  }
+  return "";
+}
+
+function namedOrderValue(order, names) {
+  const fromNotes = attributeValue(order?.note_attributes, names);
+  if (fromNotes) return fromNotes;
+  const metadata = order?.metadata;
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return "";
+  for (const name of names) {
+    const value = metadata[name];
+    if (typeof value === "string" && value.trim()) return value.trim();
+    if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  }
+  return "";
+}
+
+function courseModuleId(item) {
+  const sku = typeof item?.sku === "string" ? item.sku.trim() : "";
+  const fromSku = /^REGIMA-COURSE-(\d+)$/.exec(sku);
+  if (fromSku) return fromSku[1];
+  const fromProperty = attributeValue(item?.properties, ["module_id", "moduleId"]);
+  return /^\d+$/.test(fromProperty) ? fromProperty : "";
+}
+
+export function paidShopifyCourseCommands(order) {
+  if (!order || typeof order !== "object") return [];
+  const orderUser = namedOrderValue(order, ["user_id", "userId", "practitioner_id"]);
+  const items = Array.isArray(order.line_items) ? order.line_items : [];
+  const seen = new Set();
+  const courses = [];
+  for (const item of items) {
+    if (!item || typeof item !== "object") continue;
+    const moduleId = courseModuleId(item);
+    if (!moduleId || seen.has(moduleId)) continue;
+    const userId = attributeValue(item.properties, ["user_id", "userId", "practitioner_id"]) || orderUser;
+    if (!userId) continue;
+    seen.add(moduleId);
+    courses.push({
+      moduleId,
+      userId,
+      course: item.title || item.name || `module ${moduleId}`,
+    });
+  }
+  return courses.flatMap((course) => courseOrderCommands(course));
+}
+
+export function acceptPaidShopifyOrder(order) {
+  return commitCourseCommands(() => paidShopifyCourseCommands(order), true);
+}
+
 export function shopifyCourseCommands(courses) {
   if (!Array.isArray(courses)) throw new Error("courses are required");
   return courses.flatMap((course) => courseOrderCommands(course));

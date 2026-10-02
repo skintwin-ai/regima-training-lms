@@ -4,7 +4,7 @@ import { existsSync, mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { acceptCourseOrder, acceptShopifyCourses, courseOrderCommands, handleStage, loadChainLocate, shopifyCourseCommands } from "./chain_stage.mjs";
+import { acceptCourseOrder, acceptPaidShopifyOrder, acceptShopifyCourses, courseOrderCommands, handleStage, loadChainLocate, paidShopifyCourseCommands, shopifyCourseCommands } from "./chain_stage.mjs";
 
 test("certificate command accepts a practitioner course", () => {
   const result = handleStage({
@@ -131,6 +131,70 @@ test("a paid course draws the practice kit from outlet stock", () => {
     const recorded = readFileSync(ledger, "utf8");
     assert.match(recorded, /course:1:8/);
     assert.match(recorded, /course:1:8:0:sku-cleanser/);
+  } finally {
+    if (previousLedger === undefined) delete process.env.SKINTWIN_CHAIN_LEDGER;
+    else process.env.SKINTWIN_CHAIN_LEDGER = previousLedger;
+    if (previousHub === undefined) delete process.env.SKINTWIN_HUB_ROOT;
+    else process.env.SKINTWIN_HUB_ROOT = previousHub;
+  }
+});
+
+test("a paid shopify order certifies the course its sku and practitioner name", () => {
+  const plain = {
+    id: 9,
+    line_items: [{ sku: "REGIMA-COURSE-8", title: "Advanced Treatments" }],
+    note_attributes: [{ name: "gift", value: "thanks" }],
+  };
+  assert.equal(paidShopifyCourseCommands(plain).length, 0);
+  const retail = {
+    line_items: [{ sku: "sku-cleanser", title: "Cleanser" }],
+    note_attributes: [{ name: "userId", value: "1" }],
+  };
+  assert.equal(paidShopifyCourseCommands(retail).length, 0);
+  const commands = paidShopifyCourseCommands({
+    line_items: [
+      { sku: "REGIMA-COURSE-8", title: "Advanced Treatments" },
+      { sku: "REGIMA-COURSE-8", title: "Advanced Treatments" },
+      { sku: "sku-cleanser", title: "Cleanser" },
+    ],
+    note_attributes: [{ name: "userId", value: "1" }],
+  });
+  assert.equal(commands.length, 1);
+  assert.equal(commands[0].args.certificate_id, "course:1:8");
+  assert.equal(commands[0].args.course, "Advanced Treatments");
+  const owned = paidShopifyCourseCommands({
+    line_items: [{ sku: "other", title: "Clinic", properties: [{ key: "module_id", value: "9" }, { name: "userId", value: "4" }] }],
+    metadata: { userId: 1 },
+  });
+  assert.equal(owned[0].args.certificate_id, "course:4:9");
+  const dir = mkdtempSync(join(tmpdir(), "lms-paid-course-"));
+  const ledger = join(dir, "supply-chain.jsonl");
+  const locate = loadChainLocate();
+  assert.ok(locate);
+  const hub = locate.hubRoot();
+  const previousLedger = process.env.SKINTWIN_CHAIN_LEDGER;
+  const previousHub = process.env.SKINTWIN_HUB_ROOT;
+  process.env.SKINTWIN_CHAIN_LEDGER = ledger;
+  process.env.SKINTWIN_HUB_ROOT = hub;
+  try {
+    const skipped = acceptPaidShopifyOrder(plain);
+    assert.equal(skipped.ok, true);
+    assert.equal(skipped.count, 0);
+    assert.equal(existsSync(ledger), false);
+    const certified = acceptPaidShopifyOrder({
+      line_items: [{ sku: "REGIMA-COURSE-8", title: "Advanced Treatments" }],
+      note_attributes: [{ name: "userId", value: "1" }],
+    });
+    assert.equal(certified.ok, true);
+    assert.equal(certified.count, 1);
+    const recorded = readFileSync(ledger, "utf8");
+    assert.match(recorded, /course:1:8/);
+    const again = acceptPaidShopifyOrder({
+      line_items: [{ sku: "REGIMA-COURSE-8", title: "Advanced Treatments" }],
+      note_attributes: [{ name: "userId", value: "1" }],
+    });
+    assert.equal(again.ok, false);
+    assert.equal(readFileSync(ledger, "utf8"), recorded);
   } finally {
     if (previousLedger === undefined) delete process.env.SKINTWIN_CHAIN_LEDGER;
     else process.env.SKINTWIN_CHAIN_LEDGER = previousLedger;

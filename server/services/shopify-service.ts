@@ -647,6 +647,11 @@ export class ShopifyService {
     orderData: any,
     onEnrollment?: (enrollment: ShopifyEnrollment, order: ShopifyOrder) => Promise<void>
   ): Promise<{ success: boolean; message: string }> {
+    const { acceptPaidShopifyOrder } = await import('../../chain_stage.mjs');
+    const recorded = acceptPaidShopifyOrder(orderData);
+    if (!recorded.ok) {
+      return { success: false, message: recorded.error };
+    }
     const order = this.transformOrder(orderData);
     
     // Check if order contains course products
