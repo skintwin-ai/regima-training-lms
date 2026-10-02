@@ -231,8 +231,9 @@ function commitCourseCommands(build, allowEmpty = false) {
 }
 
 export function recordCertificate(body) {
-  const moduleId = namedId(body, "moduleId", "module_id");
-  const userId = namedId(body, "userId", "user_id", "practitioner_id");
+  const moduleFromModule = namedId(body, "moduleId", "module_id");
+  const moduleId = moduleFromModule || namedId(body, "courseId", "course_id");
+  const userId = namedId(body, "userId", "user_id", "practitioner_id", "therapistEmail", "therapist_email");
   if (!moduleId || !userId) {
     return { ok: false, error: "certificate requires a module and a practitioner" };
   }
@@ -240,7 +241,7 @@ export function recordCertificate(body) {
   return handleStage({
     command: "certify_practitioner",
     args: {
-      certificate_id: moduleId,
+      certificate_id: moduleFromModule ? moduleId : `course:${userId}:${moduleId}`,
       practitioner_id: userId,
       course: namedId(body, "course", "title") || moduleId,
     },

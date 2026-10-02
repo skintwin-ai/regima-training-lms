@@ -621,3 +621,65 @@ test("a course kit named by a numeric string draws that product once", () => {
     else process.env.SKINTWIN_HUB_ROOT = previousHub;
   }
 });
+
+test("a certification named by courseId records that practitioner once", () => {
+  const dir = mkdtempSync(join(tmpdir(), "lms-course-cert-"));
+  const ledger = join(dir, "supply-chain.jsonl");
+  const locate = loadChainLocate();
+  assert.ok(locate);
+  const hub = locate.hubRoot();
+  const previousLedger = process.env.SKINTWIN_CHAIN_LEDGER;
+  const previousHub = process.env.SKINTWIN_HUB_ROOT;
+  process.env.SKINTWIN_CHAIN_LEDGER = ledger;
+  process.env.SKINTWIN_HUB_ROOT = hub;
+  try {
+    const unnamed = recordCertificate({ certLevel: "Professional", therapistName: "Ada Okoro" });
+    assert.equal(unnamed.ok, false);
+    assert.equal(existsSync(ledger), false);
+    const present = recordCertificate({
+      moduleId: "8",
+      courseId: "9",
+      userId: "1",
+      therapistEmail: "ada@regima.training",
+      course: "Advanced Treatments",
+    });
+    assert.equal(present.ok, true, present.error);
+    assert.equal(present.artifact.certificate_id, "8");
+    assert.equal(present.artifact.practitioner_id, "1");
+    assert.equal(present.artifact.course, "Advanced Treatments");
+    const fallen = recordCertificate({
+      moduleId: "  ",
+      courseId: " 9 ",
+      userId: "  ",
+      therapistEmail: " ada@regima.training ",
+      course: "  ",
+      title: "Clinic Retail",
+    });
+    assert.equal(fallen.ok, true, fallen.error);
+    assert.equal(fallen.artifact.certificate_id, "course:ada@regima.training:9");
+    assert.equal(fallen.artifact.practitioner_id, "ada@regima.training");
+    assert.equal(fallen.artifact.course, "Clinic Retail");
+    const courseOnly = recordCertificate({
+      courseId: "8",
+      therapistEmail: "aya@regima.training",
+    });
+    assert.equal(courseOnly.ok, true, courseOnly.error);
+    assert.equal(courseOnly.artifact.certificate_id, "course:aya@regima.training:8");
+    assert.equal(courseOnly.artifact.course, "8");
+    const recorded = readFileSync(ledger, "utf8");
+    assert.match(recorded, /"certificate_id": "8"/);
+    assert.match(recorded, /course:ada@regima.training:9/);
+    assert.match(recorded, /course:aya@regima.training:8/);
+    const again = recordCertificate({
+      courseId: "8",
+      therapistEmail: "aya@regima.training",
+    });
+    assert.equal(again.ok, false);
+    assert.equal(readFileSync(ledger, "utf8"), recorded);
+  } finally {
+    if (previousLedger === undefined) delete process.env.SKINTWIN_CHAIN_LEDGER;
+    else process.env.SKINTWIN_CHAIN_LEDGER = previousLedger;
+    if (previousHub === undefined) delete process.env.SKINTWIN_HUB_ROOT;
+    else process.env.SKINTWIN_HUB_ROOT = previousHub;
+  }
+});
