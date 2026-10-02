@@ -556,3 +556,68 @@ test("a course named by a blank course records the title once", () => {
     else process.env.SKINTWIN_HUB_ROOT = previousHub;
   }
 });
+
+test("a course kit named by a numeric string draws that product once", () => {
+  const commands = courseOrderCommands({
+    moduleId: 8,
+    userId: 1,
+    title: "Advanced Treatments",
+    kit: [
+      { name: "Manual", milligrams: "2000" },
+      { sku: "sku-cleanser", location: "cape-town", milligrams: " 2000 " },
+    ],
+  });
+  assert.equal(commands.length, 2);
+  assert.equal(commands[1].args.milligrams, 2000);
+  const dir = mkdtempSync(join(tmpdir(), "lms-kit-count-"));
+  const ledger = join(dir, "supply-chain.jsonl");
+  const locate = loadChainLocate();
+  assert.ok(locate);
+  const hub = locate.hubRoot();
+  const previousLedger = process.env.SKINTWIN_CHAIN_LEDGER;
+  const previousHub = process.env.SKINTWIN_HUB_ROOT;
+  process.env.SKINTWIN_CHAIN_LEDGER = ledger;
+  process.env.SKINTWIN_HUB_ROOT = hub;
+  const order = {
+    moduleId: 8,
+    userId: 1,
+    title: "Advanced Treatments",
+    kit: [{ sku: "sku-cleanser", location: "cape-town", milligrams: "2000" }],
+  };
+  try {
+    const seeded = spawnSync("python3", ["-m", "domain.ledger"], {
+      cwd: hub,
+      input: JSON.stringify({
+        commands: [
+          { command: "specify_ingredient", args: { ingredient_id: "glycerin", inci: "Glycerin", cas: "56-81-5" } },
+          { command: "qualify_supplier", args: { qualification_id: "qual-glycerin", supplier_name: "Inland Humectants", ingredient_id: "glycerin" } },
+          { command: "receive_lot", args: { lot_id: "lot-glycerin", ingredient_id: "glycerin", qualification_id: "qual-glycerin", milligrams: 5000 } },
+          { command: "define_formula", args: { formula_id: "cleanser", name: "Gentle cleanser", lines: [["glycerin", 5000]] } },
+          { command: "catalog_sku", args: { sku_id: "sku-cleanser", formula_id: "cleanser", name: "Gentle cleanser" } },
+          { command: "manufacture", args: { batch_id: "batch-cleanser", sku_id: "sku-cleanser", units: 1, allocations: [["glycerin", "lot-glycerin", 5000]] } },
+          { command: "transfer", args: { transfer_id: "xfer-cape-town", sku_id: "sku-cleanser", batch_id: "batch-cleanser", source: "plant", destination: "cape-town", milligrams: 5000 } },
+        ],
+      }),
+      encoding: "utf8",
+    });
+    assert.equal(seeded.status, 0, seeded.stderr || seeded.stdout);
+    const seededText = readFileSync(ledger, "utf8");
+    const word = acceptCourseOrder({ ...order, kit: [{ sku: "sku-cleanser", location: "cape-town", milligrams: "lots" }] });
+    assert.equal(word.ok, false);
+    assert.equal(readFileSync(ledger, "utf8"), seededText);
+    const paid = acceptCourseOrder(order);
+    assert.equal(paid.ok, true, paid.error);
+    assert.equal(paid.count, 2);
+    const recorded = readFileSync(ledger, "utf8");
+    assert.match(recorded, /course:1:8:0:sku-cleanser/);
+    assert.match(recorded, /"milligrams": 2000/);
+    const again = acceptCourseOrder(order);
+    assert.equal(again.ok, false);
+    assert.equal(readFileSync(ledger, "utf8"), recorded);
+  } finally {
+    if (previousLedger === undefined) delete process.env.SKINTWIN_CHAIN_LEDGER;
+    else process.env.SKINTWIN_CHAIN_LEDGER = previousLedger;
+    if (previousHub === undefined) delete process.env.SKINTWIN_HUB_ROOT;
+    else process.env.SKINTWIN_HUB_ROOT = previousHub;
+  }
+});

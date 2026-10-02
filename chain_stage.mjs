@@ -78,6 +78,11 @@ function positive(value, label) {
   return value;
 }
 
+function wholeCount(value) {
+  if (typeof value === "string" && /^\d+$/.test(value.trim())) return Number(value.trim());
+  return value;
+}
+
 function namedId(record, ...keys) {
   for (const key of keys) {
     const value = record?.[key];
@@ -117,7 +122,8 @@ export function courseOrderCommands(body) {
   kit.forEach((item, index) => {
     const sku = namedKitSku(item);
     if (!sku) return;
-    if (typeof item.location !== "string" || !Number.isInteger(item.milligrams)) {
+    const milligrams = wholeCount(item.milligrams);
+    if (typeof item.location !== "string" || !Number.isInteger(milligrams)) {
       throw new Error(`sku ${sku} requires location and milligrams`);
     }
     commands.push({
@@ -126,7 +132,7 @@ export function courseOrderCommands(body) {
         fulfillment_id: `course:${practitionerId}:${moduleKey}:${index}:${sku}`,
         sku_id: sku,
         location: text(item.location, "location"),
-        milligrams: positive(item.milligrams, "milligrams"),
+        milligrams: positive(milligrams, "milligrams"),
         kind: "treatment",
         practitioner_id: practitionerId,
       },
