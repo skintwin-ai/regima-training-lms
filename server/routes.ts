@@ -343,6 +343,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       const { handleStage } = await import("../chain_stage.mjs");
+      const hub = process.env.SKINTWIN_HUB_ROOT || "/agent/repos/skintwin-ecosystem-design";
+      process.env.SKINTWIN_HUB_ROOT ||= hub;
+      process.env.SKINTWIN_CHAIN_LEDGER ||= `${hub}/var/supply-chain.jsonl`;
       const accepted = handleStage({
         command: "certify_practitioner",
         args: {
