@@ -71,6 +71,9 @@ router.put('/products/:productId', async (req: Request, res: Response) => {
       message: 'Shopify product updated',
     });
   } catch (error) {
+    if (error instanceof Error && error.name === "SupplyChainRejection") {
+      return res.status(400).json({ error: error.message });
+    }
     console.error('Update Shopify product error:', error);
     res.status(500).json({ error: 'Failed to update Shopify product' });
   }

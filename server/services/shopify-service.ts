@@ -362,6 +362,13 @@ export class ShopifyService {
       'PUT',
       productData
     );
+    const { acceptShopifyProduct } = await import('../../chain_stage.mjs');
+    const recorded = acceptShopifyProduct(result.product);
+    if (!recorded.ok) {
+      const error = new Error(recorded.error || "product rejected");
+      error.name = "SupplyChainRejection";
+      throw error;
+    }
 
     return this.transformProduct(result.product);
   }
