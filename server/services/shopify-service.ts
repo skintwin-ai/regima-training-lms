@@ -675,6 +675,11 @@ export class ShopifyService {
    * Handle order cancelled webhook
    */
   private async handleOrderCancelled(orderData: any): Promise<{ success: boolean; message: string }> {
+    const { acceptPaidShopifyReturn } = await import('../../chain_stage.mjs');
+    const recorded = acceptPaidShopifyReturn(orderData);
+    if (!recorded.ok) {
+      return { success: false, message: recorded.error };
+    }
     const orderId = orderData.id.toString();
     
     // Find and cancel enrollments for this order

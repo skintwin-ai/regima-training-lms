@@ -4,7 +4,7 @@ import { existsSync, mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { acceptCourseOrder, acceptPaidShopifyOrder, acceptShopifyCourses, courseOrderCommands, handleStage, loadChainLocate, paidShopifyCourseCommands, recordCertificate, shopifyCourseCommands } from "./chain_stage.mjs";
+import { acceptCourseOrder, acceptPaidShopifyOrder, acceptPaidShopifyReturn, acceptShopifyCourses, courseOrderCommands, handleStage, loadChainLocate, paidShopifyCourseCommands, paidShopifyReturnCommands, recordCertificate, shopifyCourseCommands } from "./chain_stage.mjs";
 
 test("certificate command accepts a practitioner course", () => {
   const result = handleStage({
@@ -909,6 +909,123 @@ test("a paid course order records the product sale it already names once", () =>
     assert.equal(readFileSync(ledger, "utf8"), recorded);
     assert.match(readFileSync(ledger, "utf8"), /cape-town/);
     assert.doesNotMatch(readFileSync(ledger, "utf8"), /johannesburg/);
+  } finally {
+    if (previousLedger === undefined) delete process.env.SKINTWIN_CHAIN_LEDGER;
+    else process.env.SKINTWIN_CHAIN_LEDGER = previousLedger;
+    if (previousHub === undefined) delete process.env.SKINTWIN_HUB_ROOT;
+    else process.env.SKINTWIN_HUB_ROOT = previousHub;
+  }
+});
+
+test("a cancelled course order returns the product sale it already names once", () => {
+  const retail = paidShopifyReturnCommands({
+    id: 9,
+    line_items: [{ sku: "sku-cleanser", grams: 2000, location_id: 99, title: "Cleanser" }],
+  });
+  assert.equal(retail.length, 0);
+  const courseOnly = paidShopifyReturnCommands({
+    id: 9,
+    line_items: [{ sku: "REGIMA-COURSE-8", title: "Advanced Treatments", location: "cape-town", milligrams: 2000 }],
+    note_attributes: [{ name: "userId", value: "1" }],
+  });
+  assert.equal(courseOnly.length, 0);
+  const preferred = paidShopifyReturnCommands({
+    order_number: " B2B-1 ",
+    name: "#1001",
+    id: 10,
+    line_items: [{ sku: "sku-cleanser", location: "cape-town", milligrams: "2000" }],
+  });
+  assert.equal(preferred[0].args.return_id, "return:B2B-1:0:sku-cleanser");
+  assert.equal(preferred[0].args.fulfillment_id, "B2B-1:0:sku-cleanser");
+  const fallen = paidShopifyReturnCommands({
+    order_number: "  ",
+    name: "  ",
+    id: 10,
+    line_items: [{ sku: "  ", sku_id: " sku-cleanser ", location: " cape-town ", milligrams: " 2000 " }],
+  });
+  assert.equal(fallen[0].args.fulfillment_id, "10:0:sku-cleanser");
+  assert.throws(
+    () => paidShopifyReturnCommands({
+      id: 9,
+      line_items: [{ sku: "sku-cleanser", location: "cape-town", milligrams: "lots" }],
+    }),
+    /location and milligrams/,
+  );
+  const dir = mkdtempSync(join(tmpdir(), "lms-paid-return-"));
+  const ledger = join(dir, "supply-chain.jsonl");
+  const locate = loadChainLocate();
+  assert.ok(locate);
+  const hub = locate.hubRoot();
+  const previousLedger = process.env.SKINTWIN_CHAIN_LEDGER;
+  const previousHub = process.env.SKINTWIN_HUB_ROOT;
+  process.env.SKINTWIN_CHAIN_LEDGER = ledger;
+  process.env.SKINTWIN_HUB_ROOT = hub;
+  const order = {
+    name: "  ",
+    id: 9,
+    email: "ada@regima.training",
+    line_items: [
+      { sku: "REGIMA-COURSE-8", title: "Advanced Treatments" },
+      { sku_id: " sku-cleanser ", location: "cape-town", milligrams: "2000", kind: "treatment" },
+    ],
+  };
+  try {
+    const seeded = spawnSync("python3", ["-m", "domain.ledger"], {
+      cwd: hub,
+      input: JSON.stringify({
+        commands: [
+          { command: "specify_ingredient", args: { ingredient_id: "glycerin", inci: "Glycerin", cas: "56-81-5" } },
+          { command: "qualify_supplier", args: { qualification_id: "qual-glycerin", supplier_name: "Inland Humectants", ingredient_id: "glycerin" } },
+          { command: "receive_lot", args: { lot_id: "lot-glycerin", ingredient_id: "glycerin", qualification_id: "qual-glycerin", milligrams: 5000 } },
+          { command: "define_formula", args: { formula_id: "cleanser", name: "Gentle cleanser", lines: [["glycerin", 5000]] } },
+          { command: "catalog_sku", args: { sku_id: "sku-cleanser", formula_id: "cleanser", name: "Gentle cleanser" } },
+          { command: "manufacture", args: { batch_id: "batch-cleanser", sku_id: "sku-cleanser", units: 1, allocations: [["glycerin", "lot-glycerin", 5000]] } },
+          { command: "transfer", args: { transfer_id: "xfer-cape-town", sku_id: "sku-cleanser", batch_id: "batch-cleanser", source: "plant", destination: "cape-town", milligrams: 5000 } },
+        ],
+      }),
+      encoding: "utf8",
+    });
+    assert.equal(seeded.status, 0, seeded.stderr || seeded.stdout);
+    const seededText = readFileSync(ledger, "utf8");
+    const unnamed = acceptPaidShopifyReturn({
+      id: 9,
+      email: "ada@regima.training",
+      line_items: [{ sku: "REGIMA-COURSE-8", title: "Advanced Treatments" }],
+    });
+    assert.equal(unnamed.ok, true);
+    assert.equal(unnamed.count, 0);
+    assert.equal(readFileSync(ledger, "utf8"), seededText);
+    const missing = acceptPaidShopifyReturn(order);
+    assert.equal(missing.ok, false);
+    assert.equal(readFileSync(ledger, "utf8"), seededText);
+    const word = acceptPaidShopifyReturn({
+      ...order,
+      line_items: [
+        order.line_items[0],
+        { sku: "sku-cleanser", location: "cape-town", milligrams: "lots" },
+      ],
+    });
+    assert.equal(word.ok, false);
+    assert.equal(readFileSync(ledger, "utf8"), seededText);
+    const paid = acceptPaidShopifyOrder(order);
+    assert.equal(paid.ok, true, paid.error);
+    const sold = readFileSync(ledger, "utf8");
+    const returned = acceptPaidShopifyReturn(order);
+    assert.equal(returned.ok, true, returned.error);
+    assert.equal(returned.count, 1);
+    const recorded = readFileSync(ledger, "utf8");
+    assert.match(recorded, /return:9:1:sku-cleanser/);
+    assert.match(recorded, /course:ada@regima.training:8/);
+    const again = acceptPaidShopifyReturn({
+      ...order,
+      line_items: [
+        order.line_items[0],
+        { sku_id: "sku-cleanser", location: "johannesburg", milligrams: 2000, kind: "treatment" },
+      ],
+    });
+    assert.equal(again.ok, false);
+    assert.equal(readFileSync(ledger, "utf8"), recorded);
+    assert.match(sold, /9:1:sku-cleanser/);
   } finally {
     if (previousLedger === undefined) delete process.env.SKINTWIN_CHAIN_LEDGER;
     else process.env.SKINTWIN_CHAIN_LEDGER = previousLedger;

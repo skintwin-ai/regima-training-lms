@@ -321,6 +321,22 @@ export function acceptPaidShopifyOrder(order) {
   return commitCourseCommands(() => paidShopifyCourseCommands(order), true);
 }
 
+export function paidShopifyReturnCommands(order) {
+  if (!order || typeof order !== "object") return [];
+  const orderUser = namedOrderValue(order, ["user_id", "userId", "practitioner_id"]) || orderEmail(order);
+  return shopifyProductSaleCommands(order, orderUser).map((command) => ({
+    command: "return_sale",
+    args: {
+      return_id: `return:${command.args.fulfillment_id}`,
+      fulfillment_id: command.args.fulfillment_id,
+    },
+  }));
+}
+
+export function acceptPaidShopifyReturn(order) {
+  return commitCourseCommands(() => paidShopifyReturnCommands(order), true);
+}
+
 export function shopifyCourseCommands(courses) {
   if (!Array.isArray(courses)) throw new Error("courses are required");
   return courses.flatMap((course) => courseOrderCommands(course));
