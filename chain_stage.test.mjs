@@ -1886,11 +1886,11 @@ test("a partly refunded paid order returns the line whose quantity matches", () 
         commands: [
           { command: "specify_ingredient", args: { ingredient_id: "glycerin", inci: "Glycerin", cas: "56-81-5" } },
           { command: "qualify_supplier", args: { qualification_id: "qual-glycerin", supplier_name: "Inland Humectants", ingredient_id: "glycerin" } },
-          { command: "receive_lot", args: { lot_id: "lot-glycerin", ingredient_id: "glycerin", qualification_id: "qual-glycerin", milligrams: 16000 } },
-          { command: "define_formula", args: { formula_id: "cleanser", name: "Gentle cleanser", lines: [["glycerin", 16000]] } },
+          { command: "receive_lot", args: { lot_id: "lot-glycerin", ingredient_id: "glycerin", qualification_id: "qual-glycerin", milligrams: 18000 } },
+          { command: "define_formula", args: { formula_id: "cleanser", name: "Gentle cleanser", lines: [["glycerin", 18000]] } },
           { command: "catalog_sku", args: { sku_id: "sku-cleanser", formula_id: "cleanser", name: "Gentle cleanser" } },
-          { command: "manufacture", args: { batch_id: "batch-cleanser", sku_id: "sku-cleanser", units: 1, allocations: [["glycerin", "lot-glycerin", 16000]] } },
-          { command: "transfer", args: { transfer_id: "xfer-cape-town", sku_id: "sku-cleanser", batch_id: "batch-cleanser", source: "plant", destination: "cape-town", milligrams: 16000 } },
+          { command: "manufacture", args: { batch_id: "batch-cleanser", sku_id: "sku-cleanser", units: 1, allocations: [["glycerin", "lot-glycerin", 18000]] } },
+          { command: "transfer", args: { transfer_id: "xfer-cape-town", sku_id: "sku-cleanser", batch_id: "batch-cleanser", source: "plant", destination: "cape-town", milligrams: 18000 } },
         ],
       }),
       encoding: "utf8",
@@ -1900,7 +1900,7 @@ test("a partly refunded paid order returns the line whose quantity matches", () 
     const early = acceptPaidShopifyOrder({
       id: 12,
       email: "ada@regima.training",
-      ...fullRefund({ ...line, milligrams: 17000 }),
+      ...fullRefund({ ...line, milligrams: 19000 }),
     });
     assert.equal(early.ok, false);
     assert.equal(readFileSync(ledger, "utf8"), seededText);
@@ -2094,6 +2094,62 @@ test("a partly refunded paid order returns the line whose quantity matches", () 
     assert.match(twoText, /"fulfillment_id": "21:0:sku-cleanser"/);
     assert.match(twoText, /"fulfillment_id": "21:1:sku-cleanser"/);
     assert.doesNotMatch(twoText, /return:21:/);
+
+    const updated = spawnSync(process.execPath, [
+      "--experimental-strip-types",
+      "--input-type=module",
+      "-e",
+      `
+        import { readFileSync } from "node:fs";
+        import { ShopifyService } from "./server/services/shopify-service.ts";
+        const ledger = process.env.SKINTWIN_CHAIN_LEDGER;
+        const shopify = new ShopifyService({ accessToken: "" });
+        const before = readFileSync(ledger, "utf8");
+        const line = { id: 100, sku: "sku-cleanser", location: "cape-town", milligrams: 2000, quantity: 1 };
+        const open = await shopify.handleWebhook("orders/updated", {
+          id: 22,
+          financial_status: "pending",
+          line_items: [line],
+        });
+        if (!open.success) throw new Error(open.message);
+        if (readFileSync(ledger, "utf8") !== before) throw new Error("pending update wrote");
+        const paid = await shopify.handleWebhook("orders/updated", {
+          id: 22,
+          financial_status: "paid",
+          line_items: [line],
+        });
+        if (!paid.success) throw new Error(paid.message);
+        const sold = readFileSync(ledger, "utf8");
+        if (!sold.includes('"fulfillment_id": "22:0:sku-cleanser"')) throw new Error("sale missing");
+        if (sold.includes("return:22:")) throw new Error("paid update returned");
+        const returned = await shopify.handleWebhook("orders/updated", {
+          id: 22,
+          financial_status: "partially_refunded",
+          line_items: [line],
+          refunds: [{ refund_line_items: [{ quantity: 1 }] }],
+        });
+        if (!returned.success) throw new Error(returned.message);
+        const text = readFileSync(ledger, "utf8");
+        if (!text.includes("return:22:0:sku-cleanser")) throw new Error("return missing");
+        if (text.includes("return:xfer-cape-town")) throw new Error("transfer returned");
+        const again = await shopify.handleWebhook("orders/updated", {
+          id: 22,
+          financial_status: "partially_refunded",
+          line_items: [line],
+          refunds: [{ refund_line_items: [{ quantity: 1 }] }],
+        });
+        if (!again.success) throw new Error(again.message);
+        if (readFileSync(ledger, "utf8") !== text) throw new Error("repeat wrote");
+      `,
+    ], {
+      cwd: new URL(".", import.meta.url).pathname,
+      encoding: "utf8",
+    });
+    assert.equal(updated.status, 0, updated.stderr || updated.stdout);
+    const updatedText = readFileSync(ledger, "utf8");
+    assert.match(updatedText, /"fulfillment_id": "22:0:sku-cleanser"/);
+    assert.match(updatedText, /return:22:0:sku-cleanser/);
+    assert.doesNotMatch(updatedText, /return:xfer-cape-town/);
   } finally {
     if (previousLedger === undefined) delete process.env.SKINTWIN_CHAIN_LEDGER;
     else process.env.SKINTWIN_CHAIN_LEDGER = previousLedger;

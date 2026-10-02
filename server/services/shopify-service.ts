@@ -693,6 +693,9 @@ export class ShopifyService {
     switch (topic) {
       case 'orders/paid':
         return this.handleOrderPaid(payload as any, onEnrollment);
+
+      case 'orders/updated':
+        return this.handleOrderUpdated(payload as any);
       
       case 'orders/cancelled':
         return this.handleOrderCancelled(payload as any);
@@ -712,6 +715,32 @@ export class ShopifyService {
       default:
         return { success: true, message: `Webhook ${topic} acknowledged but not processed` };
     }
+  }
+
+  /**
+   * Handle order updated webhook.
+   *
+   * A pending update stays off the ledger. A paid, partly refunded, or returned
+   * update records the same sale the paid and cancelled webhooks record.
+   */
+  private async handleOrderUpdated(
+    orderData: any,
+  ): Promise<{ success: boolean; message: string }> {
+    const { acceptPaidShopifyOrder, shopifyOrderReturned } = await import('../../chain_stage.mjs');
+    const financial = String(orderData?.financial_status || '').trim().toLowerCase();
+    const recordsSale =
+      shopifyOrderReturned(orderData) ||
+      financial === 'paid' ||
+      financial === 'partially_refunded';
+    if (!recordsSale) {
+      return { success: true, message: 'Order update acknowledged' };
+    }
+    const recorded = acceptPaidShopifyOrder(orderData);
+    if (!recorded.ok) {
+      return { success: false, message: recorded.error || 'order rejected' };
+    }
+    const orderId = orderData?.name || orderData?.id || 'order';
+    return { success: true, message: `Order ${orderId} updated` };
   }
 
   /**
@@ -861,6 +890,7 @@ export class ShopifyService {
   async registerWebhooks(callbackUrl: string): Promise<void> {
     const topics = [
       'orders/paid',
+      'orders/updated',
       'orders/cancelled',
       'customers/create',
       'customers/update',
