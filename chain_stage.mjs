@@ -167,7 +167,7 @@ function namedOrderValue(order, names) {
 }
 
 function courseModuleId(item) {
-  const sku = typeof item?.sku === "string" ? item.sku.trim() : "";
+  const sku = namedKitSku(item);
   const fromSku = /^REGIMA-COURSE-(\d+)$/.exec(sku);
   if (fromSku) return fromSku[1];
   const fromProperty = attributeValue(item?.properties, ["module_id", "moduleId"]);

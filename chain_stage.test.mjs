@@ -286,6 +286,66 @@ test("a paid shopify order certifies the course its sku and practitioner name", 
   }
 });
 
+test("a paid shopify order named by sku_id certifies that course once", () => {
+  const preferred = paidShopifyCourseCommands({
+    line_items: [{ sku: "REGIMA-COURSE-8", sku_id: "REGIMA-COURSE-9", title: "Advanced Treatments" }],
+    note_attributes: [{ name: "userId", value: "1" }],
+  });
+  assert.equal(preferred[0].args.certificate_id, "course:1:8");
+  const fallen = paidShopifyCourseCommands({
+    line_items: [{ sku: "  ", sku_id: "  ", skuId: "REGIMA-COURSE-9", title: "Clinic Retail" }],
+    note_attributes: [{ name: "user_id", value: "1" }],
+  });
+  assert.equal(fallen[0].args.certificate_id, "course:1:9");
+  assert.equal(fallen[0].args.course, "Clinic Retail");
+  const retail = paidShopifyCourseCommands({
+    line_items: [{ sku_id: "sku-cleanser", title: "Cleanser" }],
+    note_attributes: [{ name: "userId", value: "1" }],
+  });
+  assert.equal(retail.length, 0);
+  const unnamed = paidShopifyCourseCommands({
+    line_items: [{ sku_id: "REGIMA-COURSE-8", title: "Advanced Treatments" }],
+  });
+  assert.equal(unnamed.length, 0);
+  const dir = mkdtempSync(join(tmpdir(), "lms-paid-sku-id-"));
+  const ledger = join(dir, "supply-chain.jsonl");
+  const locate = loadChainLocate();
+  assert.ok(locate);
+  const hub = locate.hubRoot();
+  const previousLedger = process.env.SKINTWIN_CHAIN_LEDGER;
+  const previousHub = process.env.SKINTWIN_HUB_ROOT;
+  process.env.SKINTWIN_CHAIN_LEDGER = ledger;
+  process.env.SKINTWIN_HUB_ROOT = hub;
+  try {
+    const skipped = acceptPaidShopifyOrder({
+      line_items: [{ sku_id: "sku-cleanser", title: "Cleanser" }],
+      note_attributes: [{ name: "userId", value: "1" }],
+    });
+    assert.equal(skipped.ok, true);
+    assert.equal(skipped.count, 0);
+    assert.equal(existsSync(ledger), false);
+    const certified = acceptPaidShopifyOrder({
+      line_items: [{ sku: "  ", sku_id: "REGIMA-COURSE-8", title: "Advanced Treatments" }],
+      note_attributes: [{ name: "userId", value: "1" }],
+    });
+    assert.equal(certified.ok, true);
+    assert.equal(certified.count, 1);
+    const recorded = readFileSync(ledger, "utf8");
+    assert.match(recorded, /course:1:8/);
+    const again = acceptPaidShopifyOrder({
+      line_items: [{ sku_id: "REGIMA-COURSE-8", title: "Advanced Treatments" }],
+      note_attributes: [{ name: "userId", value: "1" }],
+    });
+    assert.equal(again.ok, false);
+    assert.equal(readFileSync(ledger, "utf8"), recorded);
+  } finally {
+    if (previousLedger === undefined) delete process.env.SKINTWIN_CHAIN_LEDGER;
+    else process.env.SKINTWIN_CHAIN_LEDGER = previousLedger;
+    if (previousHub === undefined) delete process.env.SKINTWIN_HUB_ROOT;
+    else process.env.SKINTWIN_HUB_ROOT = previousHub;
+  }
+});
+
 test("a certificate named by module_id records that module", () => {
   const dir = mkdtempSync(join(tmpdir(), "lms-certificate-"));
   const ledger = join(dir, "supply-chain.jsonl");
