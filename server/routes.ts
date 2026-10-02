@@ -342,17 +342,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         userId: req.session.userId
       });
 
-      const { handleStage, useSharedLedger } = await import("../chain_stage.mjs");
-      if (!useSharedLedger()) {
-        return res.status(400).json({ message: "supply-chain hub is not present" });
-      }
-      const accepted = handleStage({
-        command: "certify_practitioner",
-        args: {
-          certificate_id: String(certificateData.moduleId),
-          practitioner_id: String(req.session.userId),
-          course: req.body?.course || String(certificateData.moduleId),
-        },
+      const { recordCertificate } = await import("../chain_stage.mjs");
+      const accepted = recordCertificate({
+        moduleId: certificateData.moduleId,
+        userId: req.session.userId,
+        course: req.body?.course,
       });
       if (!accepted.ok) {
         return res.status(400).json({ message: accepted.error });
