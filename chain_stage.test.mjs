@@ -1890,7 +1890,7 @@ test("a partly refunded paid order returns the line whose quantity matches", () 
           { command: "define_formula", args: { formula_id: "cleanser", name: "Gentle cleanser", lines: [["glycerin", 8000]] } },
           { command: "catalog_sku", args: { sku_id: "sku-cleanser", formula_id: "cleanser", name: "Gentle cleanser" } },
           { command: "manufacture", args: { batch_id: "batch-cleanser", sku_id: "sku-cleanser", units: 1, allocations: [["glycerin", "lot-glycerin", 8000]] } },
-          { command: "transfer", args: { transfer_id: "xfer-cape-town", sku_id: "sku-cleanser", batch_id: "batch-cleanser", source: "plant", destination: "cape-town", milligrams: 6000 } },
+          { command: "transfer", args: { transfer_id: "xfer-cape-town", sku_id: "sku-cleanser", batch_id: "batch-cleanser", source: "plant", destination: "cape-town", milligrams: 8000 } },
         ],
       }),
       encoding: "utf8",
@@ -1900,7 +1900,7 @@ test("a partly refunded paid order returns the line whose quantity matches", () 
     const early = acceptPaidShopifyOrder({
       id: 12,
       email: "ada@regima.training",
-      ...fullRefund({ ...line, milligrams: 8000 }),
+      ...fullRefund({ ...line, milligrams: 9000 }),
     });
     assert.equal(early.ok, false);
     assert.equal(readFileSync(ledger, "utf8"), seededText);
@@ -2005,6 +2005,38 @@ test("a partly refunded paid order returns the line whose quantity matches", () 
     assert.doesNotMatch(text, /return:15:0:sku-cleanser/);
     assert.doesNotMatch(text, /return:xfer-cape-town/);
     assert.equal((text.match(/course:ada@regima.training:8/g) || []).length, 1);
+
+    const omittedId = acceptPaidShopifyOrder({
+      id: 16,
+      financial_status: "partially_refunded",
+      line_items: [{ id: 100, sku: "sku-cleanser", location: "cape-town", milligrams: 2000, quantity: 1 }],
+      refunds: [
+        {
+          refund_line_items: [{ quantity: 1, line_item: { sku: "sku-cleanser" } }],
+        },
+      ],
+    });
+    assert.equal(omittedId.ok, true, omittedId.error);
+    const omittedText = readFileSync(ledger, "utf8");
+    assert.match(omittedText, /return:16:0:sku-cleanser/);
+    const ambiguous = acceptPaidShopifyOrder({
+      id: 17,
+      financial_status: "partially_refunded",
+      line_items: [
+        { id: 100, sku: "sku-cleanser", location: "cape-town", milligrams: 2000, quantity: 1 },
+        { id: 101, sku: "sku-cleanser", location: "cape-town", milligrams: 2000, quantity: 1 },
+      ],
+      refunds: [
+        {
+          refund_line_items: [{ quantity: 1, line_item: { sku: "sku-cleanser" } }],
+        },
+      ],
+    });
+    assert.equal(ambiguous.ok, true, ambiguous.error);
+    const ambiguousText = readFileSync(ledger, "utf8");
+    assert.match(ambiguousText, /"fulfillment_id": "17:0:sku-cleanser"/);
+    assert.match(ambiguousText, /"fulfillment_id": "17:1:sku-cleanser"/);
+    assert.doesNotMatch(ambiguousText, /return:17:/);
   } finally {
     if (previousLedger === undefined) delete process.env.SKINTWIN_CHAIN_LEDGER;
     else process.env.SKINTWIN_CHAIN_LEDGER = previousLedger;

@@ -359,6 +359,15 @@ function lineId(value) {
   return String(value).trim();
 }
 
+function uniqueSkuIndex(items, sku) {
+  if (!sku) return undefined;
+  const matched = [];
+  items.forEach((item, index) => {
+    if (item && typeof item === "object" && namedKitSku(item) === sku) matched.push(index);
+  });
+  return matched.length === 1 ? matched[0] : undefined;
+}
+
 function ledgerRecords() {
   const raw = process.env.SKINTWIN_CHAIN_LEDGER;
   if (!raw || !existsSync(raw)) return [];
@@ -456,7 +465,8 @@ function refundedProductReturns(order, saleIds) {
       const refundItem =
         refundLine.line_item && typeof refundLine.line_item === "object" ? refundLine.line_item : null;
       const key = lineId(refundItem?.id) || lineId(refundLine.line_item_id);
-      const index = key ? indexes.get(key) : undefined;
+      let index = key ? indexes.get(key) : undefined;
+      if (index == null) index = uniqueSkuIndex(items, namedKitSku(refundItem));
       if (index == null) continue;
       const orderLine = items[index];
       if (!orderLine || typeof orderLine !== "object" || courseModuleId(orderLine)) continue;
