@@ -325,9 +325,184 @@ export function shopifyOrderReturned(order) {
   return String(order.fulfillment_status || "").trim().toLowerCase() === "restocked";
 }
 
+function shopifyPartlyRefunded(order) {
+  return String(order?.financial_status || "").trim().toLowerCase() === "partially_refunded";
+}
+
 export function acceptPaidShopifyOrder(order) {
   if (shopifyOrderReturned(order)) return acceptPaidShopifyReturn(order);
+  if (shopifyPartlyRefunded(order)) return acceptPartlyRefundedShopifyOrder(order);
   return commitCourseCommands(() => paidShopifyCourseCommands(order), true);
+}
+
+function blankQuantity(value) {
+  return value == null || (typeof value === "string" && value.trim() === "");
+}
+
+function positiveQuantity(value) {
+  const counted = wholeCount(value);
+  if (!Number.isInteger(counted) || counted < 1) {
+    throw new Error("quantity must be a positive integer");
+  }
+  return counted;
+}
+
+function soldQuantity(line, orderLine) {
+  let sold = line?.quantity;
+  if (blankQuantity(sold) && orderLine && orderLine !== line) sold = orderLine.quantity;
+  if (blankQuantity(sold) || sold === 0) sold = 1;
+  return positiveQuantity(sold);
+}
+
+function lineId(value) {
+  if (typeof value === "boolean" || value == null) return "";
+  return String(value).trim();
+}
+
+function ledgerRecords() {
+  const raw = process.env.SKINTWIN_CHAIN_LEDGER;
+  if (!raw || !existsSync(raw)) return [];
+  const records = [];
+  for (const line of readFileSync(raw, "utf8").split("\n")) {
+    if (!line.trim()) continue;
+    records.push(JSON.parse(line));
+  }
+  return records;
+}
+
+function recordedSaleIds(orderId) {
+  const ids = new Set();
+  if (!orderId) return ids;
+  const prefix = `${orderId}:`;
+  for (const record of ledgerRecords()) {
+    if (record.command !== "fulfill") continue;
+    const fulfillmentId = record.args?.fulfillment_id;
+    if (typeof fulfillmentId !== "string" || !fulfillmentId.startsWith(prefix)) continue;
+    const rest = fulfillmentId.slice(prefix.length);
+    const split = rest.indexOf(":");
+    if (split <= 0 || !/^\d+$/.test(rest.slice(0, split))) continue;
+    ids.add(fulfillmentId);
+  }
+  return ids;
+}
+
+function commandKey(command) {
+  const args = command?.args || {};
+  if (command?.command === "certify_practitioner" && args.certificate_id) {
+    return `certify_practitioner\0${args.certificate_id}`;
+  }
+  if (command?.command === "fulfill" && args.fulfillment_id) {
+    return `fulfill\0${args.fulfillment_id}`;
+  }
+  if (command?.command === "return_sale" && args.return_id) {
+    return `return_sale\0${args.return_id}`;
+  }
+  return "";
+}
+
+function sameArgs(left, right) {
+  const prior = left || {};
+  const next = right || {};
+  const keys = new Set([...Object.keys(prior), ...Object.keys(next)]);
+  for (const key of keys) {
+    if (prior[key] !== next[key]) return false;
+  }
+  return true;
+}
+
+function freshCommands(commands) {
+  const found = new Map();
+  for (const record of ledgerRecords()) {
+    const key = commandKey(record);
+    if (key) found.set(key, record.args || {});
+  }
+  const fresh = [];
+  for (const command of commands) {
+    const key = commandKey(command);
+    if (!key || !found.has(key)) {
+      fresh.push(command);
+      continue;
+    }
+    if (!sameArgs(found.get(key), command.args)) return null;
+  }
+  return fresh;
+}
+
+function refundedProductReturns(order, saleIds) {
+  if (!order || typeof order !== "object") return [];
+  const items = Array.isArray(order.line_items) ? order.line_items : [];
+  const indexes = new Map();
+  items.forEach((item, index) => {
+    if (!item || typeof item !== "object") return;
+    const key = lineId(item.id);
+    if (key) indexes.set(key, index);
+  });
+  if (order.refunds != null && !Array.isArray(order.refunds)) {
+    throw new Error("refunds must be a list");
+  }
+  const refunds = Array.isArray(order.refunds) ? order.refunds : [];
+  const orderId = orderLabel(order);
+  if (!orderId) return [];
+  const returns = [];
+  const seen = new Set();
+  for (const refund of refunds) {
+    if (!refund || typeof refund !== "object") throw new Error("each refund must be an object");
+    if (refund.refund_line_items != null && !Array.isArray(refund.refund_line_items)) {
+      throw new Error("refund_line_items must be a list");
+    }
+    const lines = Array.isArray(refund.refund_line_items) ? refund.refund_line_items : [];
+    for (const refundLine of lines) {
+      if (!refundLine || typeof refundLine !== "object") throw new Error("each refund line must be an object");
+      const refundItem =
+        refundLine.line_item && typeof refundLine.line_item === "object" ? refundLine.line_item : null;
+      const key = lineId(refundItem?.id) || lineId(refundLine.line_item_id);
+      const index = key ? indexes.get(key) : undefined;
+      if (index == null) continue;
+      const orderLine = items[index];
+      if (!orderLine || typeof orderLine !== "object" || courseModuleId(orderLine)) continue;
+      const line = refundItem || orderLine;
+      let refundedQty;
+      let soldQty;
+      try {
+        refundedQty = positiveQuantity(refundLine.quantity);
+        soldQty = soldQuantity(line, orderLine);
+      } catch {
+        continue;
+      }
+      if (refundedQty !== soldQty) continue;
+      const sku = namedKitSku(line) || namedKitSku(orderLine);
+      if (!sku) continue;
+      const fulfillmentId = `${orderId}:${index}:${sku}`;
+      if (!saleIds.has(fulfillmentId) || seen.has(fulfillmentId)) continue;
+      seen.add(fulfillmentId);
+      returns.push({
+        command: "return_sale",
+        args: { return_id: `return:${fulfillmentId}`, fulfillment_id: fulfillmentId },
+      });
+    }
+  }
+  return returns;
+}
+
+function acceptPartlyRefundedShopifyOrder(order) {
+  let commands;
+  try {
+    const drawn = paidShopifyCourseCommands(order);
+    const saleIds = new Set(
+      drawn.filter((command) => command.command === "fulfill").map((command) => command.args.fulfillment_id),
+    );
+    for (const id of recordedSaleIds(orderLabel(order))) saleIds.add(id);
+    commands = freshCommands([...drawn, ...refundedProductReturns(order, saleIds)]);
+  } catch (error) {
+    return { ok: false, error: error.message };
+  }
+  if (commands === null) return { ok: false, error: "id already exists" };
+  if (commands.length === 0) return { ok: true, count: 0 };
+  if (!useSharedLedger()) return { ok: false, error: "supply-chain hub is not present" };
+  const locate = loadChainLocate();
+  if (!locate) return { ok: false, error: "supply-chain hub is not present" };
+  const committed = locate.commitCommands(commands);
+  return committed.ok ? { ok: true, count: commands.length } : committed;
 }
 
 function recordedSaleReturns(orderId) {
