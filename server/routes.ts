@@ -342,10 +342,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         userId: req.session.userId
       });
 
-      const { handleStage } = await import("../chain_stage.mjs");
-      const hub = process.env.SKINTWIN_HUB_ROOT || "/agent/repos/skintwin-ecosystem-design";
-      process.env.SKINTWIN_HUB_ROOT ||= hub;
-      process.env.SKINTWIN_CHAIN_LEDGER ||= `${hub}/var/supply-chain.jsonl`;
+      const { handleStage, useSharedLedger } = await import("../chain_stage.mjs");
+      if (!useSharedLedger()) {
+        return res.status(400).json({ message: "supply-chain hub is not present" });
+      }
       const accepted = handleStage({
         command: "certify_practitioner",
         args: {
