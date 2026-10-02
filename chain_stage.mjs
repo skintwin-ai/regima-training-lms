@@ -317,7 +317,16 @@ export function paidShopifyCourseCommands(order) {
   ];
 }
 
+function shopifyOrderReturned(order) {
+  if (!order || typeof order !== "object") return false;
+  if (order.cancelled_at || order.cancel_reason) return true;
+  const financial = String(order.financial_status || "").trim().toLowerCase();
+  if (financial === "refunded" || financial === "voided") return true;
+  return String(order.fulfillment_status || "").trim().toLowerCase() === "restocked";
+}
+
 export function acceptPaidShopifyOrder(order) {
+  if (shopifyOrderReturned(order)) return acceptPaidShopifyReturn(order);
   return commitCourseCommands(() => paidShopifyCourseCommands(order), true);
 }
 
