@@ -78,14 +78,29 @@ function positive(value, label) {
   return value;
 }
 
+function namedId(record, ...keys) {
+  for (const key of keys) {
+    const value = record?.[key];
+    if (value == null) continue;
+    const textValue = String(value).trim();
+    if (textValue) return textValue;
+  }
+  return "";
+}
+
+function namedKitSku(item) {
+  if (typeof item?.sku === "string" && item.sku.trim() !== "") return item.sku.trim();
+  if (typeof item?.sku_id === "string" && item.sku_id.trim() !== "") return item.sku_id.trim();
+  if (typeof item?.skuId === "string" && item.skuId.trim() !== "") return item.skuId.trim();
+  return "";
+}
+
 export function courseOrderCommands(body) {
-  const moduleId = body?.moduleId;
-  const userId = body?.userId;
-  if (moduleId == null || userId == null || String(moduleId).trim() === "" || String(userId).trim() === "") {
+  const moduleKey = namedId(body, "moduleId", "module_id");
+  const practitionerId = namedId(body, "userId", "user_id", "practitioner_id");
+  if (!moduleKey || !practitionerId) {
     throw new Error("course order requires a module and a practitioner");
   }
-  const practitionerId = String(userId).trim();
-  const moduleKey = String(moduleId).trim();
   const course = text(body.course || body.title || `module ${moduleKey}`, "course");
   const commands = [
     {
@@ -100,15 +115,16 @@ export function courseOrderCommands(body) {
   const kit = body.kit == null ? [] : body.kit;
   if (!Array.isArray(kit)) throw new Error("kit must be a list");
   kit.forEach((item, index) => {
-    if (!item?.sku) return;
+    const sku = namedKitSku(item);
+    if (!sku) return;
     if (typeof item.location !== "string" || !Number.isInteger(item.milligrams)) {
-      throw new Error(`sku ${item.sku} requires location and milligrams`);
+      throw new Error(`sku ${sku} requires location and milligrams`);
     }
     commands.push({
       command: "fulfill",
       args: {
-        fulfillment_id: `course:${practitionerId}:${moduleKey}:${index}:${item.sku}`,
-        sku_id: text(item.sku, "sku"),
+        fulfillment_id: `course:${practitionerId}:${moduleKey}:${index}:${sku}`,
+        sku_id: sku,
         location: text(item.location, "location"),
         milligrams: positive(item.milligrams, "milligrams"),
         kind: "treatment",

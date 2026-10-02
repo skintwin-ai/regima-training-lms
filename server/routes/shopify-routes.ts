@@ -339,8 +339,8 @@ router.get('/orders/:orderId', async (req: Request, res: Response) => {
  */
 router.post('/local/order', async (req: Request, res: Response) => {
   try {
-    const moduleId = Number(req.body?.moduleId);
-    const userId = Number(req.body?.userId || req.session.userId);
+    const moduleId = Number(req.body?.moduleId ?? req.body?.module_id);
+    const userId = Number(req.body?.userId ?? req.body?.user_id ?? req.session.userId);
     const email = String(req.body?.email || '');
     if (!moduleId || !userId) {
       return res.status(400).json({ error: 'moduleId and userId are required' });
