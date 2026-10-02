@@ -190,6 +190,108 @@ function orderEmail(order) {
   return namedEmail(order?.email) || namedEmail(order?.customer?.email);
 }
 
+function orderLabel(order) {
+  for (const key of ["order_number", "orderNumber", "name", "id"]) {
+    const value = order?.[key];
+    if (typeof value === "string") {
+      const textValue = value.trim();
+      if (textValue) return textValue;
+      continue;
+    }
+    if (value) return String(value).trim();
+  }
+  return "";
+}
+
+function lineAttributeValues(entries) {
+  const names = {
+    location: "location",
+    milligrams: "milligrams",
+    kind: "kind",
+    practitioner_id: "practitioner_id",
+    practitionerid: "practitioner_id",
+  };
+  const found = {};
+  if (!Array.isArray(entries)) return found;
+  for (const prop of entries) {
+    if (!prop || typeof prop !== "object") continue;
+    const name = String(prop.name ?? prop.key ?? "").trim().toLowerCase();
+    const canonical = names[name];
+    if (!canonical || Object.hasOwn(found, canonical)) continue;
+    found[canonical] = prop.value;
+  }
+  return found;
+}
+
+function textOrSame(value) {
+  if (typeof value === "string") {
+    const textValue = value.trim();
+    return textValue || null;
+  }
+  return value == null ? null : value;
+}
+
+function missingAmount(value) {
+  return value == null || (typeof value === "string" && value.trim() === "");
+}
+
+function shopifyLineSale(item, defaults) {
+  let location = textOrSame(item.location);
+  let milligrams = missingAmount(item.milligrams) ? null : item.milligrams;
+  let kind = typeof item.kind === "string" && item.kind.trim() ? item.kind.trim() : null;
+  let practitioner = namedId(item, "practitionerId", "practitioner_id");
+  const props = lineAttributeValues(item.properties);
+  if (location == null && props.location != null) location = textOrSame(props.location);
+  if (milligrams == null && !missingAmount(props.milligrams)) milligrams = props.milligrams;
+  if (kind == null && typeof props.kind === "string") kind = props.kind.trim() || null;
+  if (!practitioner && props.practitioner_id != null) {
+    practitioner = String(props.practitioner_id).trim();
+  }
+  if (location == null && defaults.location != null) location = textOrSame(defaults.location);
+  if (milligrams == null && !missingAmount(defaults.milligrams)) milligrams = defaults.milligrams;
+  if (kind == null && typeof defaults.kind === "string") kind = defaults.kind.trim() || null;
+  if (!practitioner && defaults.practitioner_id) practitioner = String(defaults.practitioner_id).trim();
+  return { location, milligrams, kind, practitioner };
+}
+
+function shopifyProductSaleCommands(order, practitionerId) {
+  const items = Array.isArray(order.line_items) ? order.line_items : [];
+  const defaults = lineAttributeValues(order.note_attributes);
+  if (!defaults.practitioner_id && practitionerId) defaults.practitioner_id = practitionerId;
+  const sales = [];
+  items.forEach((item, index) => {
+    if (!item || typeof item !== "object") return;
+    if (courseModuleId(item)) return;
+    const sku = namedKitSku(item);
+    if (!sku) return;
+    const sale = shopifyLineSale(item, defaults);
+    if (sale.location == null && sale.milligrams == null && sale.kind == null) return;
+    const counted = wholeCount(sale.milligrams);
+    if (typeof sale.location !== "string" || !Number.isInteger(counted)) {
+      throw new Error(`sku ${sku} requires location and milligrams`);
+    }
+    const orderId = orderLabel(order);
+    if (!orderId) throw new Error("order number is required");
+    const kind = sale.kind || "retail";
+    if (kind !== "retail" && kind !== "treatment") {
+      throw new Error(`unknown fulfillment kind ${kind}`);
+    }
+    const args = {
+      fulfillment_id: `${orderId}:${index}:${sku}`,
+      sku_id: sku,
+      location: text(sale.location, "location"),
+      milligrams: positive(counted, "milligrams"),
+      kind,
+    };
+    if (kind === "treatment") {
+      if (!sale.practitioner) throw new Error("practitioner_id is required");
+      args.practitioner_id = sale.practitioner;
+    }
+    sales.push({ command: "fulfill", args });
+  });
+  return sales;
+}
+
 export function paidShopifyCourseCommands(order) {
   if (!order || typeof order !== "object") return [];
   const orderUser = namedOrderValue(order, ["user_id", "userId", "practitioner_id"]) || orderEmail(order);
@@ -209,7 +311,10 @@ export function paidShopifyCourseCommands(order) {
       course: namedId(item, "title", "name") || `module ${moduleId}`,
     });
   }
-  return courses.flatMap((course) => courseOrderCommands(course));
+  return [
+    ...courses.flatMap((course) => courseOrderCommands(course)),
+    ...shopifyProductSaleCommands(order, orderUser),
+  ];
 }
 
 export function acceptPaidShopifyOrder(order) {

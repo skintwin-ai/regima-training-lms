@@ -764,3 +764,155 @@ test("a paid shopify order named by customer email certifies that practitioner o
     else process.env.SKINTWIN_HUB_ROOT = previousHub;
   }
 });
+
+test("a paid course order records the product sale it already names once", () => {
+  const retail = paidShopifyCourseCommands({
+    id: 9,
+    line_items: [{ sku: "sku-cleanser", grams: 2000, location_id: 99, title: "Cleanser" }],
+  });
+  assert.equal(retail.length, 0);
+  const courseOnly = paidShopifyCourseCommands({
+    id: 9,
+    line_items: [{ sku: "REGIMA-COURSE-8", title: "Advanced Treatments", location: "cape-town", milligrams: 2000 }],
+    note_attributes: [{ name: "userId", value: "1" }],
+  });
+  assert.equal(courseOnly.length, 1);
+  assert.equal(courseOnly[0].command, "certify_practitioner");
+  const preferred = paidShopifyCourseCommands({
+    order_number: " B2B-1 ",
+    name: "#1001",
+    id: 10,
+    line_items: [{ sku: "sku-cleanser", location: "cape-town", milligrams: "2000" }],
+  });
+  assert.equal(preferred[0].args.fulfillment_id, "B2B-1:0:sku-cleanser");
+  assert.equal(preferred[0].args.milligrams, 2000);
+  const fallen = paidShopifyCourseCommands({
+    order_number: "  ",
+    orderNumber: "  ",
+    name: "  ",
+    id: 10,
+    line_items: [{ sku: "  ", sku_id: " sku-cleanser ", location: " cape-town ", milligrams: " 2000 " }],
+  });
+  assert.equal(fallen[0].args.fulfillment_id, "10:0:sku-cleanser");
+  assert.equal(fallen[0].args.location, "cape-town");
+  const noted = paidShopifyCourseCommands({
+    id: 9,
+    line_items: [{ sku: "sku-cleanser", title: "Cleanser" }],
+    note_attributes: [
+      { name: "location", value: " cape-town " },
+      { name: "milligrams", value: "2000" },
+    ],
+  });
+  assert.equal(noted[0].args.fulfillment_id, "9:0:sku-cleanser");
+  assert.equal(noted[0].args.kind, "retail");
+  const lineWins = paidShopifyCourseCommands({
+    id: 9,
+    line_items: [{
+      sku: "sku-cleanser",
+      location: "cape-town",
+      properties: [{ key: "location", value: "johannesburg" }, { key: "milligrams", value: "1000" }],
+    }],
+    note_attributes: [{ name: "location", value: "durban" }, { name: "milligrams", value: "500" }],
+  });
+  assert.equal(lineWins[0].args.location, "cape-town");
+  assert.equal(lineWins[0].args.milligrams, 1000);
+  assert.throws(
+    () => paidShopifyCourseCommands({
+      id: 9,
+      line_items: [{ sku: "sku-cleanser", location: "cape-town" }],
+    }),
+    /location and milligrams/,
+  );
+  assert.throws(
+    () => paidShopifyCourseCommands({
+      line_items: [{ sku: "sku-cleanser", location: "cape-town", milligrams: 2000 }],
+    }),
+    /order number is required/,
+  );
+  const dir = mkdtempSync(join(tmpdir(), "lms-paid-sale-"));
+  const ledger = join(dir, "supply-chain.jsonl");
+  const locate = loadChainLocate();
+  assert.ok(locate);
+  const hub = locate.hubRoot();
+  const previousLedger = process.env.SKINTWIN_CHAIN_LEDGER;
+  const previousHub = process.env.SKINTWIN_HUB_ROOT;
+  process.env.SKINTWIN_CHAIN_LEDGER = ledger;
+  process.env.SKINTWIN_HUB_ROOT = hub;
+  const order = {
+    name: "  ",
+    id: 9,
+    email: "ada@regima.training",
+    line_items: [
+      { sku: "REGIMA-COURSE-8", title: "Advanced Treatments" },
+      { sku_id: " sku-cleanser ", location: "cape-town", milligrams: "2000", kind: "treatment" },
+    ],
+  };
+  try {
+    const seeded = spawnSync("python3", ["-m", "domain.ledger"], {
+      cwd: hub,
+      input: JSON.stringify({
+        commands: [
+          { command: "specify_ingredient", args: { ingredient_id: "glycerin", inci: "Glycerin", cas: "56-81-5" } },
+          { command: "qualify_supplier", args: { qualification_id: "qual-glycerin", supplier_name: "Inland Humectants", ingredient_id: "glycerin" } },
+          { command: "receive_lot", args: { lot_id: "lot-glycerin", ingredient_id: "glycerin", qualification_id: "qual-glycerin", milligrams: 5000 } },
+          { command: "define_formula", args: { formula_id: "cleanser", name: "Gentle cleanser", lines: [["glycerin", 5000]] } },
+          { command: "catalog_sku", args: { sku_id: "sku-cleanser", formula_id: "cleanser", name: "Gentle cleanser" } },
+          { command: "manufacture", args: { batch_id: "batch-cleanser", sku_id: "sku-cleanser", units: 1, allocations: [["glycerin", "lot-glycerin", 5000]] } },
+          { command: "transfer", args: { transfer_id: "xfer-cape-town", sku_id: "sku-cleanser", batch_id: "batch-cleanser", source: "plant", destination: "cape-town", milligrams: 5000 } },
+        ],
+      }),
+      encoding: "utf8",
+    });
+    assert.equal(seeded.status, 0, seeded.stderr || seeded.stdout);
+    const seededText = readFileSync(ledger, "utf8");
+    const skipped = acceptPaidShopifyOrder({
+      id: 9,
+      email: "ada@regima.training",
+      line_items: [{ sku: "sku-cleanser", grams: 2000, location_id: 99, title: "Cleanser" }],
+    });
+    assert.equal(skipped.ok, true);
+    assert.equal(skipped.count, 0);
+    assert.equal(readFileSync(ledger, "utf8"), seededText);
+    const word = acceptPaidShopifyOrder({
+      ...order,
+      line_items: [
+        order.line_items[0],
+        { sku: "sku-cleanser", location: "cape-town", milligrams: "lots" },
+      ],
+    });
+    assert.equal(word.ok, false);
+    assert.equal(readFileSync(ledger, "utf8"), seededText);
+    const missing = acceptPaidShopifyOrder({
+      line_items: [{ sku: "sku-cleanser", location: "cape-town", milligrams: 2000 }],
+    });
+    assert.equal(missing.ok, false);
+    assert.equal(readFileSync(ledger, "utf8"), seededText);
+    const paid = acceptPaidShopifyOrder(order);
+    assert.equal(paid.ok, true, paid.error);
+    assert.equal(paid.count, 2);
+    const recorded = readFileSync(ledger, "utf8");
+    assert.match(recorded, /course:ada@regima.training:8/);
+    assert.match(recorded, /9:1:sku-cleanser/);
+    assert.match(recorded, /"location": "cape-town"/);
+    assert.match(recorded, /"milligrams": 2000/);
+    const again = acceptPaidShopifyOrder(order);
+    assert.equal(again.ok, false);
+    assert.equal(readFileSync(ledger, "utf8"), recorded);
+    const moved = acceptPaidShopifyOrder({
+      ...order,
+      line_items: [
+        order.line_items[0],
+        { sku_id: "sku-cleanser", location: "johannesburg", milligrams: 2000, kind: "treatment" },
+      ],
+    });
+    assert.equal(moved.ok, false);
+    assert.equal(readFileSync(ledger, "utf8"), recorded);
+    assert.match(readFileSync(ledger, "utf8"), /cape-town/);
+    assert.doesNotMatch(readFileSync(ledger, "utf8"), /johannesburg/);
+  } finally {
+    if (previousLedger === undefined) delete process.env.SKINTWIN_CHAIN_LEDGER;
+    else process.env.SKINTWIN_CHAIN_LEDGER = previousLedger;
+    if (previousHub === undefined) delete process.env.SKINTWIN_HUB_ROOT;
+    else process.env.SKINTWIN_HUB_ROOT = previousHub;
+  }
+});
