@@ -1548,6 +1548,15 @@ test("processing a stored course order records the product sale it already names
 
 test("a cancelled course order returns the sale it already recorded once", () => {
   const omitted = { id: 9, email: "ada@regima.training", line_items: [{ sku: "REGIMA-COURSE-8", title: "Advanced Treatments" }] };
+  const partial = {
+    id: 21,
+    email: "ada@regima.training",
+    cancelled_at: "2026-10-02T00:00:00Z",
+    line_items: [
+      { sku: "REGIMA-COURSE-8", title: "Advanced Treatments" },
+      { sku: "sku-cleanser", location: "cape-town", milligrams: 500 },
+    ],
+  };
   const absent = mkdtempSync(join(tmpdir(), "lms-omit-return-absent-"));
   const previousLedger = process.env.SKINTWIN_CHAIN_LEDGER;
   const previousHub = process.env.SKINTWIN_HUB_ROOT;
@@ -1555,6 +1564,10 @@ test("a cancelled course order returns the sale it already recorded once", () =>
   try {
     assert.deepEqual(paidShopifyReturnCommands(omitted), []);
     assert.equal(acceptPaidShopifyReturn(omitted).count, 0);
+    assert.deepEqual(
+      paidShopifyReturnCommands(partial).map((command) => command.args.fulfillment_id),
+      ["21:1:sku-cleanser"],
+    );
   } finally {
     if (previousLedger === undefined) delete process.env.SKINTWIN_CHAIN_LEDGER;
     else process.env.SKINTWIN_CHAIN_LEDGER = previousLedger;
@@ -1616,6 +1629,39 @@ test("a cancelled course order returns the sale it already recorded once", () =>
     assert.equal(other.ok, true);
     assert.equal(other.count, 0);
     assert.equal(readFileSync(ledger, "utf8"), recorded);
+    const split = spawnSync("python3", ["-m", "domain.ledger"], {
+      cwd: hub,
+      input: JSON.stringify({
+        commands: [
+          { command: "fulfill", args: { fulfillment_id: "21:0:sku-cleanser", sku_id: "sku-cleanser", location: "cape-town", milligrams: 1000, kind: "retail" } },
+          { command: "fulfill", args: { fulfillment_id: "21:1:sku-cleanser", sku_id: "sku-cleanser", location: "cape-town", milligrams: 1000, kind: "retail" } },
+          { command: "fulfill", args: { fulfillment_id: "4:0:sku-cleanser", sku_id: "sku-cleanser", location: "cape-town", milligrams: 1000, kind: "retail" } },
+        ],
+      }),
+      encoding: "utf8",
+    });
+    assert.equal(split.status, 0, split.stderr || split.stdout);
+    const named = paidShopifyReturnCommands(partial);
+    assert.deepEqual(
+      named.map((command) => command.args.fulfillment_id),
+      ["21:1:sku-cleanser", "21:0:sku-cleanser"],
+    );
+    assert.deepEqual(
+      named.map((command) => command.args.return_id),
+      ["return:21:1:sku-cleanser", "return:21:0:sku-cleanser"],
+    );
+    const returnedSplit = acceptPaidShopifyReturn(partial);
+    assert.equal(returnedSplit.ok, true, returnedSplit.error);
+    assert.equal(returnedSplit.count, 2);
+    const splitText = readFileSync(ledger, "utf8");
+    assert.match(splitText, /return:21:0:sku-cleanser/);
+    assert.match(splitText, /return:21:1:sku-cleanser/);
+    assert.doesNotMatch(splitText, /return:4:0:sku-cleanser/);
+    assert.doesNotMatch(splitText, /return:xfer-cape-town/);
+    assert.doesNotMatch(splitText, /return:course:/);
+    const repeatedSplit = acceptPaidShopifyReturn(partial);
+    assert.equal(repeatedSplit.ok, false);
+    assert.equal(readFileSync(ledger, "utf8"), splitText);
   } finally {
     if (previousLedger === undefined) delete process.env.SKINTWIN_CHAIN_LEDGER;
     else process.env.SKINTWIN_CHAIN_LEDGER = previousLedger;

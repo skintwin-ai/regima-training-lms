@@ -573,8 +573,11 @@ export function paidShopifyReturnCommands(order) {
       fulfillment_id: command.args.fulfillment_id,
     },
   }));
-  if (named.length > 0) return named;
-  return recordedSaleReturns(orderLabel(order));
+  const seen = new Set(named.map((command) => command.args.fulfillment_id));
+  const omitted = recordedSaleReturns(orderLabel(order)).filter(
+    (command) => !seen.has(command.args.fulfillment_id),
+  );
+  return [...named, ...omitted];
 }
 
 export function acceptPaidShopifyReturn(order) {
