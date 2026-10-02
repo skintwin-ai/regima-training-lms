@@ -4,7 +4,7 @@ import { existsSync, mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { acceptCourseOrder, acceptPaidShopifyOrder, acceptShopifyCourses, courseOrderCommands, handleStage, loadChainLocate, paidShopifyCourseCommands, shopifyCourseCommands } from "./chain_stage.mjs";
+import { acceptCourseOrder, acceptPaidShopifyOrder, acceptShopifyCourses, courseOrderCommands, handleStage, loadChainLocate, paidShopifyCourseCommands, recordCertificate, shopifyCourseCommands } from "./chain_stage.mjs";
 
 test("certificate command accepts a practitioner course", () => {
   const result = handleStage({
@@ -276,6 +276,66 @@ test("a paid shopify order certifies the course its sku and practitioner name", 
       line_items: [{ sku: "REGIMA-COURSE-8", title: "Advanced Treatments" }],
       note_attributes: [{ name: "userId", value: "1" }],
     });
+    assert.equal(again.ok, false);
+    assert.equal(readFileSync(ledger, "utf8"), recorded);
+  } finally {
+    if (previousLedger === undefined) delete process.env.SKINTWIN_CHAIN_LEDGER;
+    else process.env.SKINTWIN_CHAIN_LEDGER = previousLedger;
+    if (previousHub === undefined) delete process.env.SKINTWIN_HUB_ROOT;
+    else process.env.SKINTWIN_HUB_ROOT = previousHub;
+  }
+});
+
+test("a certificate named by module_id records that module", () => {
+  const dir = mkdtempSync(join(tmpdir(), "lms-certificate-"));
+  const ledger = join(dir, "supply-chain.jsonl");
+  const locate = loadChainLocate();
+  assert.ok(locate);
+  const hub = locate.hubRoot();
+  const previousLedger = process.env.SKINTWIN_CHAIN_LEDGER;
+  const previousHub = process.env.SKINTWIN_HUB_ROOT;
+  process.env.SKINTWIN_CHAIN_LEDGER = ledger;
+  process.env.SKINTWIN_HUB_ROOT = hub;
+  try {
+    const unnamed = recordCertificate({ title: "Advanced Treatments" });
+    assert.equal(unnamed.ok, false);
+    assert.equal(existsSync(ledger), false);
+    const noPractitioner = recordCertificate({ module_id: 8, course: "Advanced Treatments" });
+    assert.equal(noPractitioner.ok, false);
+    assert.equal(existsSync(ledger), false);
+    const present = recordCertificate({
+      moduleId: "8",
+      module_id: "9",
+      userId: "1",
+      user_id: "2",
+      course: "  ",
+      title: "Advanced Treatments",
+    });
+    assert.equal(present.ok, true);
+    assert.equal(present.artifact.certificate_id, "8");
+    assert.equal(present.artifact.practitioner_id, "1");
+    assert.equal(present.artifact.course, "Advanced Treatments");
+    const blankModule = recordCertificate({
+      moduleId: "  ",
+      module_id: "9",
+      userId: "  ",
+      practitioner_id: "aya",
+      course: "  ",
+      title: "  ",
+    });
+    assert.equal(blankModule.ok, true);
+    assert.equal(blankModule.artifact.certificate_id, "9");
+    assert.equal(blankModule.artifact.practitioner_id, "aya");
+    assert.equal(blankModule.artifact.course, "9");
+    const snake = recordCertificate({ module_id: 10, user_id: 3, title: "Clinic Retail" });
+    assert.equal(snake.ok, true);
+    assert.equal(snake.artifact.certificate_id, "10");
+    assert.equal(snake.artifact.practitioner_id, "3");
+    assert.equal(snake.artifact.course, "Clinic Retail");
+    const recorded = readFileSync(ledger, "utf8");
+    assert.match(recorded, /"certificate_id": "8"/);
+    assert.match(recorded, /"certificate_id": "10"/);
+    const again = recordCertificate({ module_id: 10, user_id: 3, title: "Clinic Retail" });
     assert.equal(again.ok, false);
     assert.equal(readFileSync(ledger, "utf8"), recorded);
   } finally {

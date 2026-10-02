@@ -225,18 +225,18 @@ function commitCourseCommands(build, allowEmpty = false) {
 }
 
 export function recordCertificate(body) {
-  const moduleId = body?.moduleId;
-  const userId = body?.userId;
-  if (moduleId == null || userId == null) {
+  const moduleId = namedId(body, "moduleId", "module_id");
+  const userId = namedId(body, "userId", "user_id", "practitioner_id");
+  if (!moduleId || !userId) {
     return { ok: false, error: "certificate requires a module and a practitioner" };
   }
   if (!useSharedLedger()) return { ok: false, error: "supply-chain hub is not present" };
   return handleStage({
     command: "certify_practitioner",
     args: {
-      certificate_id: String(moduleId),
-      practitioner_id: String(userId),
-      course: body.course ? String(body.course) : String(moduleId),
+      certificate_id: moduleId,
+      practitioner_id: userId,
+      course: namedId(body, "course", "title") || moduleId,
     },
   });
 }

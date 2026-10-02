@@ -25,6 +25,17 @@ import {
 import session from 'express-session';
 import MemoryStore from 'memorystore';
 
+function postedCertificateModule(body: Record<string, unknown>): unknown {
+  for (const key of ["moduleId", "module_id"]) {
+    const value = body[key];
+    if (value == null) continue;
+    if (typeof value === "string" && value.trim() === "") continue;
+    const number = typeof value === "number" ? value : Number(String(value).trim());
+    if (Number.isInteger(number) && number >= 1) return number;
+  }
+  return body.moduleId;
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Set up session middleware
   const MemoryStoreSession = MemoryStore(session);
@@ -339,14 +350,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const certificateData = insertCertificateSchema.parse({
         ...req.body,
+        moduleId: postedCertificateModule((req.body ?? {}) as Record<string, unknown>),
         userId: req.session.userId
       });
 
       const { recordCertificate } = await import("../chain_stage.mjs");
       const accepted = recordCertificate({
+        ...req.body,
         moduleId: certificateData.moduleId,
         userId: req.session.userId,
-        course: req.body?.course,
       });
       if (!accepted.ok) {
         return res.status(400).json({ message: accepted.error });
