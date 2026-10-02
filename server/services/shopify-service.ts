@@ -632,8 +632,11 @@ export class ShopifyService {
       case 'customers/update':
         return this.handleCustomerUpdate(payload as any);
       
+      case 'products/create':
+        return this.recordProductWebhook(payload as any, "created");
+
       case 'products/update':
-        return this.handleProductUpdate(payload as any);
+        return this.recordProductWebhook(payload as any, "updated");
       
       default:
         return { success: true, message: `Webhook ${topic} acknowledged but not processed` };
@@ -713,17 +716,20 @@ export class ShopifyService {
   }
 
   /**
-   * Handle product update webhook
+   * Catalog a product webhook when that product already names a formula.
    */
-  private async handleProductUpdate(productData: any): Promise<{ success: boolean; message: string }> {
+  private async recordProductWebhook(
+    productData: any,
+    change: "created" | "updated",
+  ): Promise<{ success: boolean; message: string }> {
     const { acceptShopifyProduct } = await import('../../chain_stage.mjs');
     const recorded = acceptShopifyProduct(productData);
     if (!recorded.ok) {
       return { success: false, message: recorded.error };
     }
     const product = this.transformProduct(productData);
-    console.log(`Shopify product updated: ${product.title}`);
-    return { success: true, message: `Product ${product.title} updated` };
+    console.log(`Shopify product ${change}: ${product.title}`);
+    return { success: true, message: `Product ${product.title} ${change}` };
   }
 
   // ==========================================================================
@@ -787,6 +793,7 @@ export class ShopifyService {
       'orders/cancelled',
       'customers/create',
       'customers/update',
+      'products/create',
       'products/update',
     ];
 

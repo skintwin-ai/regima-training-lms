@@ -1154,3 +1154,98 @@ test("a course product update records the formula it already names once", () => 
     else process.env.SKINTWIN_HUB_ROOT = previousHub;
   }
 });
+
+test("a created course product records the formula it already names once", () => {
+  const dir = mkdtempSync(join(tmpdir(), "lms-product-create-"));
+  const ledger = join(dir, "supply-chain.jsonl");
+  const locate = loadChainLocate();
+  assert.ok(locate);
+  const hub = locate.hubRoot();
+  const previousLedger = process.env.SKINTWIN_CHAIN_LEDGER;
+  const previousHub = process.env.SKINTWIN_HUB_ROOT;
+  process.env.SKINTWIN_CHAIN_LEDGER = ledger;
+  process.env.SKINTWIN_HUB_ROOT = hub;
+  try {
+    const seeded = spawnSync("python3", ["-m", "domain.ledger"], {
+      cwd: hub,
+      input: JSON.stringify({
+        commands: [
+          { command: "specify_ingredient", args: { ingredient_id: "glycerin", inci: "Glycerin", cas: "56-81-5" } },
+          { command: "define_formula", args: { formula_id: "cleanser", name: "Gentle cleanser", lines: [["glycerin", 5000]] } },
+        ],
+      }),
+      encoding: "utf8",
+    });
+    assert.equal(seeded.status, 0, seeded.stderr || seeded.stdout);
+    const recorded = spawnSync(process.execPath, [
+      "--experimental-strip-types",
+      "--input-type=module",
+      "-e",
+      `
+        import { readFileSync } from "node:fs";
+        import { ShopifyService } from "./server/services/shopify-service.ts";
+        const ledger = process.env.SKINTWIN_CHAIN_LEDGER;
+        const shopify = new ShopifyService({ accessToken: "" });
+        const course = await shopify.handleWebhook("products/create", {
+          id: 8,
+          title: "Training: Advanced Treatments",
+          tags: "training, course",
+          variants: [{ id: 1, sku: "REGIMA-COURSE-8", price: "0.00" }],
+        });
+        if (!course.success) throw new Error(course.message);
+        const blank = await shopify.handleWebhook("products/create", {
+          id: 9,
+          title: "Blank formula",
+          tags: "formula:",
+          variants: [{ id: 2, sku: "sku-blank", price: "1.00" }],
+        });
+        if (!blank.success) throw new Error(blank.message);
+        const seededText = readFileSync(ledger, "utf8");
+        const missing = await shopify.handleWebhook("products/create", {
+          id: 10,
+          title: "Missing formula",
+          tags: "formula:missing",
+          variants: [{ id: 3, sku: "sku-missing", price: "1.00" }],
+        });
+        if (missing.success) throw new Error("missing formula was accepted");
+        if (readFileSync(ledger, "utf8") !== seededText) throw new Error("missing formula wrote");
+        const product = {
+          id: 11,
+          title: "Gentle cleanser",
+          tags: "formula:cleanser",
+          variants: [{ id: 4, sku: "sku-cleanser", price: "25.00" }],
+        };
+        const created = await shopify.handleWebhook("products/create", product);
+        if (!created.success) throw new Error(created.message);
+        if (!created.message.includes("created")) throw new Error(created.message);
+        const text = readFileSync(ledger, "utf8");
+        if (!text.includes('"sku_id": "sku-cleanser"')) throw new Error("sku missing");
+        if (!text.includes('"formula_id": "cleanser"')) throw new Error("formula missing");
+        const again = await shopify.handleWebhook("products/create", product);
+        if (again.success) throw new Error("repeat was accepted");
+        if (readFileSync(ledger, "utf8") !== text) throw new Error("repeat wrote");
+        const changed = await shopify.handleWebhook("products/create", { ...product, tags: "formula:serum-c" });
+        if (changed.success) throw new Error("changed formula was accepted");
+        const finalText = readFileSync(ledger, "utf8");
+        if (finalText !== text) throw new Error("changed formula wrote");
+        if (!finalText.includes("cleanser") || finalText.includes("serum-c")) throw new Error("formula changed");
+      `,
+    ], {
+      cwd: new URL(".", import.meta.url).pathname,
+      encoding: "utf8",
+    });
+    assert.equal(recorded.status, 0, recorded.stderr || recorded.stdout);
+    const text = readFileSync(ledger, "utf8");
+    assert.match(text, /"sku_id": "sku-cleanser"/);
+    assert.match(text, /"formula_id": "cleanser"/);
+    assert.doesNotMatch(text, /serum-c/);
+    assert.doesNotMatch(text, /REGIMA-COURSE-8/);
+    assert.doesNotMatch(text, /sku-blank/);
+    assert.doesNotMatch(text, /sku-missing/);
+  } finally {
+    if (previousLedger === undefined) delete process.env.SKINTWIN_CHAIN_LEDGER;
+    else process.env.SKINTWIN_CHAIN_LEDGER = previousLedger;
+    if (previousHub === undefined) delete process.env.SKINTWIN_HUB_ROOT;
+    else process.env.SKINTWIN_HUB_ROOT = previousHub;
+  }
+});
