@@ -683,3 +683,84 @@ test("a certification named by courseId records that practitioner once", () => {
     else process.env.SKINTWIN_HUB_ROOT = previousHub;
   }
 });
+
+test("a paid shopify order named by customer email certifies that practitioner once", () => {
+  const preferred = paidShopifyCourseCommands({
+    email: " ada@regima.training ",
+    customer: { email: "other@regima.training" },
+    line_items: [{ sku: "REGIMA-COURSE-8", title: "Advanced Treatments" }],
+    note_attributes: [{ name: "userId", value: "1" }],
+  });
+  assert.equal(preferred[0].args.certificate_id, "course:1:8");
+  assert.equal(preferred[0].args.practitioner_id, "1");
+  const fallen = paidShopifyCourseCommands({
+    email: "  ",
+    customer: { email: " Ada@Regima.Training " },
+    line_items: [{ sku: "REGIMA-COURSE-8", title: "  ", name: "Clinic Retail" }],
+  });
+  assert.equal(fallen[0].args.certificate_id, "course:ada@regima.training:8");
+  assert.equal(fallen[0].args.practitioner_id, "ada@regima.training");
+  assert.equal(fallen[0].args.course, "Clinic Retail");
+  const orderEmail = paidShopifyCourseCommands({
+    email: " Aya@Regima.Training ",
+    customer: { email: "other@regima.training" },
+    line_items: [{ sku: "REGIMA-COURSE-9", title: "Advanced Treatments" }],
+  });
+  assert.equal(orderEmail[0].args.practitioner_id, "aya@regima.training");
+  const retail = paidShopifyCourseCommands({
+    email: "ada@regima.training",
+    line_items: [{ sku: "sku-cleanser", title: "Cleanser" }],
+  });
+  assert.equal(retail.length, 0);
+  const unnamed = paidShopifyCourseCommands({
+    email: "lots",
+    customer: { email: "  " },
+    line_items: [{ sku: "REGIMA-COURSE-8", title: "Advanced Treatments" }],
+  });
+  assert.equal(unnamed.length, 0);
+  const dir = mkdtempSync(join(tmpdir(), "lms-course-email-"));
+  const ledger = join(dir, "supply-chain.jsonl");
+  const locate = loadChainLocate();
+  assert.ok(locate);
+  const hub = locate.hubRoot();
+  const previousLedger = process.env.SKINTWIN_CHAIN_LEDGER;
+  const previousHub = process.env.SKINTWIN_HUB_ROOT;
+  process.env.SKINTWIN_CHAIN_LEDGER = ledger;
+  process.env.SKINTWIN_HUB_ROOT = hub;
+  try {
+    const skipped = acceptPaidShopifyOrder({
+      email: "ada@regima.training",
+      line_items: [{ sku: "sku-cleanser", title: "Cleanser" }],
+    });
+    assert.equal(skipped.ok, true);
+    assert.equal(skipped.count, 0);
+    assert.equal(existsSync(ledger), false);
+    const rejected = acceptPaidShopifyOrder({
+      email: "lots",
+      line_items: [{ sku: "REGIMA-COURSE-8", title: "Advanced Treatments" }],
+    });
+    assert.equal(rejected.ok, true);
+    assert.equal(rejected.count, 0);
+    assert.equal(existsSync(ledger), false);
+    const certified = acceptPaidShopifyOrder({
+      email: "  ",
+      customer: { email: " Ada@Regima.Training " },
+      line_items: [{ sku: "REGIMA-COURSE-8", title: "Clinic Retail" }],
+    });
+    assert.equal(certified.ok, true, certified.error);
+    assert.equal(certified.count, 1);
+    const recorded = readFileSync(ledger, "utf8");
+    assert.match(recorded, /course:ada@regima.training:8/);
+    const again = acceptPaidShopifyOrder({
+      customer: { email: "ada@regima.training" },
+      line_items: [{ sku: "REGIMA-COURSE-8", title: "Clinic Retail" }],
+    });
+    assert.equal(again.ok, false);
+    assert.equal(readFileSync(ledger, "utf8"), recorded);
+  } finally {
+    if (previousLedger === undefined) delete process.env.SKINTWIN_CHAIN_LEDGER;
+    else process.env.SKINTWIN_CHAIN_LEDGER = previousLedger;
+    if (previousHub === undefined) delete process.env.SKINTWIN_HUB_ROOT;
+    else process.env.SKINTWIN_HUB_ROOT = previousHub;
+  }
+});

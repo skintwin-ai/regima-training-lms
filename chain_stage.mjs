@@ -180,9 +180,19 @@ function courseModuleId(item) {
   return /^\d+$/.test(fromProperty) ? fromProperty : "";
 }
 
+function namedEmail(value) {
+  if (typeof value !== "string") return "";
+  const email = value.trim().toLowerCase();
+  return email.includes("@") ? email : "";
+}
+
+function orderEmail(order) {
+  return namedEmail(order?.email) || namedEmail(order?.customer?.email);
+}
+
 export function paidShopifyCourseCommands(order) {
   if (!order || typeof order !== "object") return [];
-  const orderUser = namedOrderValue(order, ["user_id", "userId", "practitioner_id"]);
+  const orderUser = namedOrderValue(order, ["user_id", "userId", "practitioner_id"]) || orderEmail(order);
   const items = Array.isArray(order.line_items) ? order.line_items : [];
   const seen = new Set();
   const courses = [];
