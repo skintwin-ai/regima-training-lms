@@ -339,17 +339,29 @@ router.get('/orders/:orderId', async (req: Request, res: Response) => {
  */
 router.post('/local/order', async (req: Request, res: Response) => {
   try {
-    const moduleId = Number(req.body?.moduleId);
-    const userId = Number(req.body?.userId || req.session.userId);
+    const moduleId = Number(req.body?.moduleId ?? req.body?.module_id);
+    const userId = Number(req.body?.userId ?? req.body?.user_id ?? req.session.userId);
     const email = String(req.body?.email || '');
     if (!moduleId || !userId) {
       return res.status(400).json({ error: 'moduleId and userId are required' });
+    }
+    const { acceptCourseOrder } = await import('../../chain_stage.mjs');
+    const accepted = acceptCourseOrder({
+      moduleId,
+      userId,
+      course: req.body?.course,
+      title: req.body?.title,
+      kit: req.body?.kit,
+    });
+    if (!accepted.ok) {
+      return res.status(400).json({ error: accepted.error });
     }
     const shopifyService = getShopifyService();
     const result = await shopifyService.createPaidCourseOrder({
       email: email || 'demo@skintwin.ai',
       userId,
       moduleId,
+      title: req.body?.title,
     });
     res.json({
       success: true,
@@ -381,6 +393,12 @@ router.post('/orders/:orderId/process', async (req: Request, res: Response) => {
 
     if (!order) {
       return res.status(404).json({ error: 'Order not found' });
+    }
+
+    const { acceptShopifyCourses } = await import('../../chain_stage.mjs');
+    const accepted = acceptShopifyCourses(shopifyService.courseOrdersFor(order, Number(userId)));
+    if (!accepted.ok) {
+      return res.status(400).json({ error: accepted.error });
     }
 
     const enrollments = await shopifyService.processOrderForEnrollment(order, userId);
