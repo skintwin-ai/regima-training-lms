@@ -499,6 +499,27 @@ export class ShopifyService {
   }
 
   /**
+   * Record a product sale the stored Shopify order already names.
+   */
+  async recordStoredOrder(
+    orderId: string,
+  ): Promise<{ ok: true; order: ShopifyOrder } | { ok: false; error: string } | null> {
+    let raw: any;
+    try {
+      const result = await this.shopifyRequest<{ order: any }>(`/orders/${orderId}.json`);
+      raw = result.order;
+    } catch {
+      return null;
+    }
+    const { acceptPaidShopifyOrder } = await import('../../chain_stage.mjs');
+    const recorded = acceptPaidShopifyOrder(raw);
+    if (!recorded.ok) {
+      return { ok: false, error: recorded.error || "order rejected" };
+    }
+    return { ok: true, order: this.transformOrder(raw) };
+  }
+
+  /**
    * Transform Shopify order response
    */
   private transformOrder(order: any): ShopifyOrder {

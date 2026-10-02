@@ -392,24 +392,27 @@ router.post('/orders/:orderId/process', async (req: Request, res: Response) => {
     }
 
     const shopifyService = getShopifyService();
-    const order = await shopifyService.getOrder(orderId);
+    const stored = await shopifyService.recordStoredOrder(orderId);
 
-    if (!order) {
+    if (!stored) {
       return res.status(404).json({ error: 'Order not found' });
+    }
+    if (!stored.ok) {
+      return res.status(400).json({ error: stored.error });
     }
 
     const { acceptShopifyCourses } = await import('../../chain_stage.mjs');
-    const accepted = acceptShopifyCourses(shopifyService.courseOrdersFor(order, Number(userId)));
+    const accepted = acceptShopifyCourses(shopifyService.courseOrdersFor(stored.order, Number(userId)));
     if (!accepted.ok) {
       return res.status(400).json({ error: accepted.error });
     }
 
-    const enrollments = await shopifyService.processOrderForEnrollment(order, userId);
+    const enrollments = await shopifyService.processOrderForEnrollment(stored.order, userId);
 
     res.json({
       success: true,
       enrollments,
-      message: `Processed ${enrollments.length} enrollment(s) from order ${order.name}`,
+      message: `Processed ${enrollments.length} enrollment(s) from order ${stored.order.name}`,
     });
   } catch (error) {
     console.error('Process order error:', error);

@@ -1348,3 +1348,110 @@ test("a saved course product records the formula that product already names once
     else process.env.SKINTWIN_HUB_ROOT = previousHub;
   }
 });
+
+test("processing a stored course order records the product sale it already names once", () => {
+  const dir = mkdtempSync(join(tmpdir(), "lms-stored-order-"));
+  const ledger = join(dir, "supply-chain.jsonl");
+  const locate = loadChainLocate();
+  assert.ok(locate);
+  const hub = locate.hubRoot();
+  const previousLedger = process.env.SKINTWIN_CHAIN_LEDGER;
+  const previousHub = process.env.SKINTWIN_HUB_ROOT;
+  process.env.SKINTWIN_CHAIN_LEDGER = ledger;
+  process.env.SKINTWIN_HUB_ROOT = hub;
+  try {
+    const seeded = spawnSync("python3", ["-m", "domain.ledger"], {
+      cwd: hub,
+      input: JSON.stringify({
+        commands: [
+          { command: "specify_ingredient", args: { ingredient_id: "glycerin", inci: "Glycerin", cas: "56-81-5" } },
+          { command: "qualify_supplier", args: { qualification_id: "qual-glycerin", supplier_name: "Inland Humectants", ingredient_id: "glycerin" } },
+          { command: "receive_lot", args: { lot_id: "lot-glycerin", ingredient_id: "glycerin", qualification_id: "qual-glycerin", milligrams: 5000 } },
+          { command: "define_formula", args: { formula_id: "cleanser", name: "Gentle cleanser", lines: [["glycerin", 5000]] } },
+          { command: "catalog_sku", args: { sku_id: "sku-cleanser", formula_id: "cleanser", name: "Gentle cleanser" } },
+          { command: "manufacture", args: { batch_id: "batch-cleanser", sku_id: "sku-cleanser", units: 1, allocations: [["glycerin", "lot-glycerin", 5000]] } },
+          { command: "transfer", args: { transfer_id: "xfer-cape-town", sku_id: "sku-cleanser", batch_id: "batch-cleanser", source: "plant", destination: "cape-town", milligrams: 5000 } },
+        ],
+      }),
+      encoding: "utf8",
+    });
+    assert.equal(seeded.status, 0, seeded.stderr || seeded.stdout);
+    const recorded = spawnSync(process.execPath, [
+      "--experimental-strip-types",
+      "--input-type=module",
+      "-e",
+      `
+        import { readFileSync } from "node:fs";
+        import { ShopifyService } from "./server/services/shopify-service.ts";
+        const ledger = process.env.SKINTWIN_CHAIN_LEDGER;
+        const shopify = new ShopifyService({ accessToken: "" });
+        const seededText = readFileSync(ledger, "utf8");
+        shopify.localOrders.set("ord-plain", {
+          id: "ord-plain",
+          name: "#plain",
+          email: "ada@regima.training",
+          line_items: [{ id: "li-plain", sku: "sku-cleanser", title: "Cleanser", grams: 2000, location_id: 99, quantity: 1, price: "25.00" }],
+        });
+        const plain = await shopify.recordStoredOrder("ord-plain");
+        if (!plain || !plain.ok) throw new Error(plain && plain.error);
+        if (readFileSync(ledger, "utf8") !== seededText) throw new Error("grams wrote");
+        shopify.localOrders.set("ord-bad", {
+          id: "ord-bad",
+          name: "#bad",
+          email: "ada@regima.training",
+          line_items: [{ id: "li-bad", sku: "sku-cleanser", title: "Cleanser", location: "cape-town", milligrams: "lots", quantity: 1, price: "25.00" }],
+        });
+        const bad = await shopify.recordStoredOrder("ord-bad");
+        if (!bad || bad.ok) throw new Error("bad milligrams was accepted");
+        if (readFileSync(ledger, "utf8") !== seededText) throw new Error("bad milligrams wrote");
+        shopify.localOrders.set("ord-course", {
+          id: "ord-course",
+          name: "#course",
+          email: "ada@regima.training",
+          line_items: [{ id: "li-course", sku: "REGIMA-COURSE-8", title: "Advanced Treatments", location: "cape-town", milligrams: "2000", quantity: 1, price: "0.00" }],
+        });
+        const course = await shopify.recordStoredOrder("ord-course");
+        if (!course || !course.ok) throw new Error(course && course.error);
+        const courseText = readFileSync(ledger, "utf8");
+        if (!courseText.includes("course:ada@regima.training:8")) throw new Error("certificate missing");
+        if (courseText.includes("fulfillment_id")) throw new Error("course line fulfilled");
+        shopify.localOrders.set("ord-sale", {
+          id: "ord-sale",
+          name: "  ",
+          email: "ada@regima.training",
+          line_items: [
+            { id: "li-sale", sku: "sku-cleanser", title: "Gentle cleanser", location: "cape-town", milligrams: "2000", quantity: 1, price: "25.00" },
+          ],
+        });
+        const sold = await shopify.recordStoredOrder("ord-sale");
+        if (!sold || !sold.ok) throw new Error(sold && sold.error);
+        const text = readFileSync(ledger, "utf8");
+        if (!text.includes('"fulfillment_id": "ord-sale:0:sku-cleanser"')) throw new Error("sale missing");
+        if (!text.includes('"location": "cape-town"')) throw new Error("location missing");
+        if (!text.includes('"milligrams": 2000')) throw new Error("milligrams missing");
+        const stored = shopify.localOrders.get("ord-sale");
+        stored.line_items[0].location = "johannesburg";
+        const again = await shopify.recordStoredOrder("ord-sale");
+        if (!again || again.ok) throw new Error("repeat was accepted");
+        const finalText = readFileSync(ledger, "utf8");
+        if (finalText !== text) throw new Error("repeat wrote");
+        if (!finalText.includes("cape-town") || finalText.includes("johannesburg")) throw new Error("location changed");
+      `,
+    ], {
+      cwd: new URL(".", import.meta.url).pathname,
+      encoding: "utf8",
+    });
+    assert.equal(recorded.status, 0, recorded.stderr || recorded.stdout);
+    const text = readFileSync(ledger, "utf8");
+    assert.match(text, /"fulfillment_id": "ord-sale:0:sku-cleanser"/);
+    assert.match(text, /"location": "cape-town"/);
+    assert.match(text, /"milligrams": 2000/);
+    assert.match(text, /course:ada@regima.training:8/);
+    assert.doesNotMatch(text, /johannesburg/);
+  } finally {
+    if (previousLedger === undefined) delete process.env.SKINTWIN_CHAIN_LEDGER;
+    else process.env.SKINTWIN_CHAIN_LEDGER = previousLedger;
+    if (previousHub === undefined) delete process.env.SKINTWIN_HUB_ROOT;
+    else process.env.SKINTWIN_HUB_ROOT = previousHub;
+  }
+});
