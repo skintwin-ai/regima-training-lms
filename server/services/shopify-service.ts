@@ -763,16 +763,17 @@ export class ShopifyService {
    *
    * A pending update stays off the ledger. A paid, partly refunded, or returned
    * update records the same sale the paid and cancelled webhooks record.
+   * Refund lines count when that financial status is omitted. A present status wins.
    */
   private async handleOrderUpdated(
     orderData: any,
   ): Promise<{ success: boolean; message: string }> {
-    const { acceptPaidShopifyOrder, shopifyOrderReturned } = await import('../../chain_stage.mjs');
+    const { acceptPaidShopifyOrder, shopifyOrderReturned, shopifyPartlyRefunded } = await import('../../chain_stage.mjs');
     const financial = String(orderData?.financial_status || '').trim().toLowerCase();
     const recordsSale =
       shopifyOrderReturned(orderData) ||
       financial === 'paid' ||
-      financial === 'partially_refunded';
+      shopifyPartlyRefunded(orderData);
     if (!recordsSale) {
       return { success: true, message: 'Order update acknowledged' };
     }

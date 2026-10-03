@@ -2255,6 +2255,23 @@ test("a partly refunded paid order returns the line whose quantity matches", () 
         });
         if (!again.success) throw new Error(again.message);
         if (readFileSync(ledger, "utf8") !== text) throw new Error("repeat wrote");
+        const omitted = await shopify.handleWebhook("orders/updated", {
+          id: 23,
+          line_items: [line],
+          refunds: [{ refund_line_items: [{ quantity: 1 }] }],
+        });
+        if (!omitted.success) throw new Error(omitted.message);
+        const omittedText = readFileSync(ledger, "utf8");
+        if (!omittedText.includes('"fulfillment_id": "23:0:sku-cleanser"')) throw new Error("omitted status missed the sale");
+        if (!omittedText.includes("return:23:0:sku-cleanser")) throw new Error("omitted status stayed drawn");
+        const pendingRefund = await shopify.handleWebhook("orders/updated", {
+          id: 24,
+          financial_status: "pending",
+          line_items: [line],
+          refunds: [{ refund_line_items: [{ quantity: 1 }] }],
+        });
+        if (!pendingRefund.success) throw new Error(pendingRefund.message);
+        if (readFileSync(ledger, "utf8") !== omittedText) throw new Error("pending refund wrote");
       `,
     ], {
       cwd: new URL(".", import.meta.url).pathname,
@@ -2264,6 +2281,8 @@ test("a partly refunded paid order returns the line whose quantity matches", () 
     const updatedText = readFileSync(ledger, "utf8");
     assert.match(updatedText, /"fulfillment_id": "22:0:sku-cleanser"/);
     assert.match(updatedText, /return:22:0:sku-cleanser/);
+    assert.match(updatedText, /return:23:0:sku-cleanser/);
+    assert.doesNotMatch(updatedText, /return:24:/);
     assert.doesNotMatch(updatedText, /return:xfer-cape-town/);
   } finally {
     if (previousLedger === undefined) delete process.env.SKINTWIN_CHAIN_LEDGER;

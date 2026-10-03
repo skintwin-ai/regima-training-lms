@@ -325,8 +325,22 @@ export function shopifyOrderReturned(order) {
   return String(order.fulfillment_status || "").trim().toLowerCase() === "restocked";
 }
 
-function shopifyPartlyRefunded(order) {
-  return String(order?.financial_status || "").trim().toLowerCase() === "partially_refunded";
+function shopifyNamesRefundLines(order) {
+  const refunds = order?.refunds;
+  if (!Array.isArray(refunds)) return false;
+  return refunds.some(
+    (refund) =>
+      refund &&
+      typeof refund === "object" &&
+      Array.isArray(refund.refund_line_items) &&
+      refund.refund_line_items.length > 0,
+  );
+}
+
+export function shopifyPartlyRefunded(order) {
+  const financial = String(order?.financial_status || "").trim().toLowerCase();
+  if (financial) return financial === "partially_refunded";
+  return shopifyNamesRefundLines(order);
 }
 
 export function acceptPaidShopifyOrder(order) {
