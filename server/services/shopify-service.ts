@@ -47,6 +47,35 @@ export function isLocalShopifyRail(token = process.env.SHOPIFY_ACCESS_TOKEN || "
   );
 }
 
+function namedVariantSku(variant: unknown) {
+  if (!variant || typeof variant !== "object") return "";
+  const sku = (variant as { sku?: unknown }).sku;
+  return typeof sku === "string" && sku.trim() ? sku.trim() : "";
+}
+
+function variantsKeepingNamedSku(incoming: unknown[], prior: unknown) {
+  const earlier = Array.isArray(prior) ? prior : [];
+  return incoming.map((variant, index) => {
+    const earlierVariant =
+      earlier[index] && typeof earlier[index] === "object"
+        ? (earlier[index] as Record<string, unknown>)
+        : {};
+    const next: Record<string, unknown> = {
+      ...earlierVariant,
+      ...(variant && typeof variant === "object" ? variant : {}),
+    };
+    const sku = namedVariantSku(variant) || namedVariantSku(earlierVariant);
+    if (sku) next.sku = sku;
+    return next;
+  });
+}
+
+function productKeepingNamedSku(saved: any, prior: any) {
+  if (!saved || typeof saved !== "object" || !prior || typeof prior !== "object") return saved;
+  if (!Array.isArray(saved.variants)) return saved;
+  return { ...saved, variants: variantsKeepingNamedSku(saved.variants, prior.variants) };
+}
+
 // Metafield namespaces for course data
 const METAFIELD_NAMESPACE = 'regima_training';
 
@@ -176,7 +205,11 @@ export class ShopifyService {
       const id = path.slice('/products/'.length, -'.json'.length);
       const existing = this.localProducts.get(id);
       if (!existing) throw new Error(`Shopify API error: 404 - product ${id}`);
-      const next = { ...existing, ...payload.product, id };
+      const incoming = payload.product || {};
+      const next = { ...existing, ...incoming, id };
+      if (Array.isArray(incoming.variants)) {
+        next.variants = variantsKeepingNamedSku(incoming.variants, existing.variants);
+      }
       this.localProducts.set(id, next);
       return { product: next } as T;
     }
@@ -373,13 +406,21 @@ export class ShopifyService {
     if (updates.description) productData.product.body_html = updates.description;
     if (updates.price) productData.product.variants = [{ price: updates.price }];
 
+    let priorProduct: any = null;
+    try {
+      const current = await this.shopifyRequest<{ product: any }>(`/products/${productId}.json`);
+      priorProduct = current.product;
+    } catch {
+      priorProduct = null;
+    }
+
     const result = await this.shopifyRequest<{ product: any }>(
       `/products/${productId}.json`,
       'PUT',
       productData
     );
     const { acceptShopifyProduct } = await import('../../chain_stage.mjs');
-    const recorded = acceptShopifyProduct(result.product);
+    const recorded = acceptShopifyProduct(productKeepingNamedSku(result.product, priorProduct));
     if (!recorded.ok) {
       const error = new Error(recorded.error || "product rejected");
       error.name = "SupplyChainRejection";

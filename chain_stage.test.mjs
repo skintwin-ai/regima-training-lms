@@ -1349,6 +1349,75 @@ test("a saved course product records the formula that product already names once
   }
 });
 
+test("a price update keeps the sku that course product already named", () => {
+  const dir = mkdtempSync(join(tmpdir(), "lms-product-price-"));
+  const ledger = join(dir, "supply-chain.jsonl");
+  const locate = loadChainLocate();
+  assert.ok(locate);
+  const hub = locate.hubRoot();
+  const previousLedger = process.env.SKINTWIN_CHAIN_LEDGER;
+  const previousHub = process.env.SKINTWIN_HUB_ROOT;
+  process.env.SKINTWIN_CHAIN_LEDGER = ledger;
+  process.env.SKINTWIN_HUB_ROOT = hub;
+  try {
+    const seeded = spawnSync("python3", ["-m", "domain.ledger"], {
+      cwd: hub,
+      input: JSON.stringify({
+        commands: [
+          { command: "specify_ingredient", args: { ingredient_id: "glycerin", inci: "Glycerin", cas: "56-81-5" } },
+          { command: "define_formula", args: { formula_id: "cleanser", name: "Gentle cleanser", lines: [["glycerin", 5000]] } },
+        ],
+      }),
+      encoding: "utf8",
+    });
+    assert.equal(seeded.status, 0, seeded.stderr || seeded.stdout);
+    const recorded = spawnSync(process.execPath, [
+      "--experimental-strip-types",
+      "--input-type=module",
+      "-e",
+      `
+        import { readFileSync } from "node:fs";
+        import { ShopifyService } from "./server/services/shopify-service.ts";
+        const ledger = process.env.SKINTWIN_CHAIN_LEDGER;
+        const shopify = new ShopifyService({ accessToken: "" });
+        const created = await shopify.createCourseProduct(8, "Advanced Treatments", "Playable module", "120.00");
+        const seededText = readFileSync(ledger, "utf8");
+        const stored = shopify.localProducts.get(created.id);
+        stored.tags = "formula:cleanser";
+        stored.variants[0].sku = "sku-cleanser";
+        const priced = await shopify.updateCourseProduct(created.id, { price: "15.00" });
+        if (priced.variants[0].sku !== "sku-cleanser") throw new Error(priced.variants[0].sku || "sku dropped");
+        const text = readFileSync(ledger, "utf8");
+        if (text === seededText) throw new Error("named sku was not cataloged");
+        if (!text.includes('"sku_id": "sku-cleanser"')) throw new Error("sku missing");
+        if (!text.includes('"formula_id": "cleanser"')) throw new Error("formula missing");
+        if (text.includes('"sku_id": "Training:')) throw new Error("title was cataloged");
+        let repeatRejected = false;
+        try {
+          await shopify.updateCourseProduct(created.id, { price: "16.00" });
+        } catch (error) {
+          repeatRejected = error.name === "SupplyChainRejection";
+        }
+        if (!repeatRejected) throw new Error("repeat price update was accepted");
+        if (readFileSync(ledger, "utf8") !== text) throw new Error("repeat price update wrote");
+      `,
+    ], {
+      cwd: new URL(".", import.meta.url).pathname,
+      encoding: "utf8",
+    });
+    assert.equal(recorded.status, 0, recorded.stderr || recorded.stdout);
+    const text = readFileSync(ledger, "utf8");
+    assert.match(text, /"sku_id": "sku-cleanser"/);
+    assert.match(text, /"formula_id": "cleanser"/);
+    assert.doesNotMatch(text, /"sku_id": "Training:/);
+  } finally {
+    if (previousLedger === undefined) delete process.env.SKINTWIN_CHAIN_LEDGER;
+    else process.env.SKINTWIN_CHAIN_LEDGER = previousLedger;
+    if (previousHub === undefined) delete process.env.SKINTWIN_HUB_ROOT;
+    else process.env.SKINTWIN_HUB_ROOT = previousHub;
+  }
+});
+
 test("a created course product records the formula that returned product already names once", () => {
   const dir = mkdtempSync(join(tmpdir(), "lms-product-create-response-"));
   const ledger = join(dir, "supply-chain.jsonl");
