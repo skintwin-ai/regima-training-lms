@@ -410,6 +410,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'therapistEmail, therapistName, certLevel, and courseId are required' });
       }
 
+      const { recordCertificate } = await import("../chain_stage.mjs");
+      const accepted = recordCertificate({
+        ...req.body,
+        therapistEmail: emailFromUsername(therapistEmail),
+        courseId: String(courseId),
+      });
+      if (!accepted.ok) {
+        return res.status(400).json({ message: accepted.error });
+      }
+
       const result = await ingestCertificationEvent(
         {
           therapistEmail: emailFromUsername(therapistEmail),
