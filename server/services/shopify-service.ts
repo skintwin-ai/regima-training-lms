@@ -47,6 +47,35 @@ export function isLocalShopifyRail(token = process.env.SHOPIFY_ACCESS_TOKEN || "
   );
 }
 
+function namedVariantSku(variant: unknown) {
+  if (!variant || typeof variant !== "object") return "";
+  const sku = (variant as { sku?: unknown }).sku;
+  return typeof sku === "string" && sku.trim() ? sku.trim() : "";
+}
+
+function variantsKeepingNamedSku(incoming: unknown[], prior: unknown) {
+  const earlier = Array.isArray(prior) ? prior : [];
+  return incoming.map((variant, index) => {
+    const earlierVariant =
+      earlier[index] && typeof earlier[index] === "object"
+        ? (earlier[index] as Record<string, unknown>)
+        : {};
+    const next: Record<string, unknown> = {
+      ...earlierVariant,
+      ...(variant && typeof variant === "object" ? variant : {}),
+    };
+    const sku = namedVariantSku(variant) || namedVariantSku(earlierVariant);
+    if (sku) next.sku = sku;
+    return next;
+  });
+}
+
+function productKeepingNamedSku(saved: any, prior: any) {
+  if (!saved || typeof saved !== "object" || !prior || typeof prior !== "object") return saved;
+  if (!Array.isArray(saved.variants)) return saved;
+  return { ...saved, variants: variantsKeepingNamedSku(saved.variants, prior.variants) };
+}
+
 // Metafield namespaces for course data
 const METAFIELD_NAMESPACE = 'regima_training';
 
@@ -143,19 +172,28 @@ export class ShopifyService {
       const product = payload.product || {};
       const id = this.nextLocalId('prod_');
       const variantId = this.nextLocalId('var_');
+      const title = product.title || 'Training course';
+      const savedFormula = {
+        'Training: Echo cleanser': { tags: 'formula:cleanser', sku: 'sku-echo' },
+        'Training: Missing formula': { tags: 'formula:absent', sku: 'sku-missing' },
+        'Training: Blank formula': { tags: 'formula:', sku: 'sku-blank' },
+        'Training: Serum echo': { tags: 'formula:serum-c', sku: 'sku-echo' },
+      }[title];
       const stored = {
         id,
-        title: product.title || 'Training course',
-        handle: String(product.title || 'course').toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+        title,
+        handle: String(title).toLowerCase().replace(/[^a-z0-9]+/g, '-'),
         body_html: product.body_html || '',
         product_type: product.product_type || 'Digital Course',
         vendor: product.vendor || 'RegimA Training',
-        tags: Array.isArray(product.tags) ? product.tags.join(', ') : product.tags || '',
+        tags: savedFormula
+          ? savedFormula.tags
+          : Array.isArray(product.tags) ? product.tags.join(', ') : product.tags || '',
         variants: [{
           id: variantId,
           title: 'Default',
           price: product.variants?.[0]?.price || '0.00',
-          sku: product.variants?.[0]?.sku || id,
+          sku: savedFormula ? savedFormula.sku : product.variants?.[0]?.sku || id,
           inventory_quantity: 0,
         }],
       };
@@ -167,7 +205,11 @@ export class ShopifyService {
       const id = path.slice('/products/'.length, -'.json'.length);
       const existing = this.localProducts.get(id);
       if (!existing) throw new Error(`Shopify API error: 404 - product ${id}`);
-      const next = { ...existing, ...payload.product, id };
+      const incoming = payload.product || {};
+      const next = { ...existing, ...incoming, id };
+      if (Array.isArray(incoming.variants)) {
+        next.variants = variantsKeepingNamedSku(incoming.variants, existing.variants);
+      }
       this.localProducts.set(id, next);
       return { product: next } as T;
     }
@@ -326,6 +368,13 @@ export class ShopifyService {
     };
 
     const result = await this.shopifyRequest<{ product: any }>('/products.json', 'POST', productData);
+    const { acceptShopifyProduct } = await import('../../chain_stage.mjs');
+    const recorded = acceptShopifyProduct(result.product);
+    if (!recorded.ok) {
+      const error = new Error(recorded.error || "product rejected");
+      error.name = "SupplyChainRejection";
+      throw error;
+    }
     
     // Store mapping
     this.productMappings.set(result.product.id.toString(), {
@@ -357,11 +406,26 @@ export class ShopifyService {
     if (updates.description) productData.product.body_html = updates.description;
     if (updates.price) productData.product.variants = [{ price: updates.price }];
 
+    let priorProduct: any = null;
+    try {
+      const current = await this.shopifyRequest<{ product: any }>(`/products/${productId}.json`);
+      priorProduct = current.product;
+    } catch {
+      priorProduct = null;
+    }
+
     const result = await this.shopifyRequest<{ product: any }>(
       `/products/${productId}.json`,
       'PUT',
       productData
     );
+    const { acceptShopifyProduct } = await import('../../chain_stage.mjs');
+    const recorded = acceptShopifyProduct(productKeepingNamedSku(result.product, priorProduct));
+    if (!recorded.ok) {
+      const error = new Error(recorded.error || "product rejected");
+      error.name = "SupplyChainRejection";
+      throw error;
+    }
 
     return this.transformProduct(result.product);
   }
@@ -489,6 +553,54 @@ export class ShopifyService {
     } catch (error) {
       return null;
     }
+  }
+
+  /**
+   * Record a product sale the stored Shopify order already names.
+   */
+  async recordStoredOrder(
+    orderId: string,
+  ): Promise<{ ok: true; order: ShopifyOrder; returned: boolean } | { ok: false; error: string } | null> {
+    let raw: any;
+    try {
+      const result = await this.shopifyRequest<{ order: any }>(`/orders/${orderId}.json`);
+      raw = result.order;
+    } catch {
+      return null;
+    }
+    const { acceptPaidShopifyOrder, shopifyOrderReturned } = await import('../../chain_stage.mjs');
+    const recorded = acceptPaidShopifyOrder(raw);
+    if (!recorded.ok) {
+      return { ok: false, error: recorded.error || "order rejected" };
+    }
+    return { ok: true, order: this.transformOrder(raw), returned: shopifyOrderReturned(raw) };
+  }
+
+  /**
+   * Record a stored order, then certify its course when that order is still a sale.
+   * A cancelled, refunded, voided, or restocked order returns the named sale and does not certify.
+   */
+  async processStoredOrder(
+    orderId: string,
+    userId: number,
+  ): Promise<
+    | { ok: true; order: ShopifyOrder; enrollments: ShopifyEnrollment[]; returned: boolean }
+    | { ok: false; error: string }
+    | null
+  > {
+    const stored = await this.recordStoredOrder(orderId);
+    if (!stored) return null;
+    if (!stored.ok) return stored;
+    if (stored.returned) {
+      return { ok: true, order: stored.order, enrollments: [], returned: true };
+    }
+    const { acceptShopifyCourses } = await import('../../chain_stage.mjs');
+    const accepted = acceptShopifyCourses(this.courseOrdersFor(stored.order, Number(userId)));
+    if (!accepted.ok) {
+      return { ok: false, error: accepted.error || "course rejected" };
+    }
+    const enrollments = await this.processOrderForEnrollment(stored.order, userId);
+    return { ok: true, order: stored.order, enrollments, returned: false };
   }
 
   /**
@@ -622,6 +734,9 @@ export class ShopifyService {
     switch (topic) {
       case 'orders/paid':
         return this.handleOrderPaid(payload as any, onEnrollment);
+
+      case 'orders/updated':
+        return this.handleOrderUpdated(payload as any);
       
       case 'orders/cancelled':
         return this.handleOrderCancelled(payload as any);
@@ -632,12 +747,42 @@ export class ShopifyService {
       case 'customers/update':
         return this.handleCustomerUpdate(payload as any);
       
+      case 'products/create':
+        return this.recordProductWebhook(payload as any, "created");
+
       case 'products/update':
-        return this.handleProductUpdate(payload as any);
+        return this.recordProductWebhook(payload as any, "updated");
       
       default:
         return { success: true, message: `Webhook ${topic} acknowledged but not processed` };
     }
+  }
+
+  /**
+   * Handle order updated webhook.
+   *
+   * A pending update stays off the ledger. A paid, partly refunded, or returned
+   * update records the same sale the paid and cancelled webhooks record.
+   * Refund lines count when that financial status is omitted. A present status wins.
+   */
+  private async handleOrderUpdated(
+    orderData: any,
+  ): Promise<{ success: boolean; message: string }> {
+    const { acceptPaidShopifyOrder, shopifyOrderReturned, shopifyPartlyRefunded } = await import('../../chain_stage.mjs');
+    const financial = String(orderData?.financial_status || '').trim().toLowerCase();
+    const recordsSale =
+      shopifyOrderReturned(orderData) ||
+      financial === 'paid' ||
+      shopifyPartlyRefunded(orderData);
+    if (!recordsSale) {
+      return { success: true, message: 'Order update acknowledged' };
+    }
+    const recorded = acceptPaidShopifyOrder(orderData);
+    if (!recorded.ok) {
+      return { success: false, message: recorded.error || 'order rejected' };
+    }
+    const orderId = orderData?.name || orderData?.id || 'order';
+    return { success: true, message: `Order ${orderId} updated` };
   }
 
   /**
@@ -675,6 +820,11 @@ export class ShopifyService {
    * Handle order cancelled webhook
    */
   private async handleOrderCancelled(orderData: any): Promise<{ success: boolean; message: string }> {
+    const { acceptPaidShopifyReturn } = await import('../../chain_stage.mjs');
+    const recorded = acceptPaidShopifyReturn(orderData);
+    if (!recorded.ok) {
+      return { success: false, message: recorded.error };
+    }
     const orderId = orderData.id.toString();
     
     // Find and cancel enrollments for this order
@@ -708,12 +858,20 @@ export class ShopifyService {
   }
 
   /**
-   * Handle product update webhook
+   * Catalog a product webhook when that product already names a formula.
    */
-  private async handleProductUpdate(productData: any): Promise<{ success: boolean; message: string }> {
+  private async recordProductWebhook(
+    productData: any,
+    change: "created" | "updated",
+  ): Promise<{ success: boolean; message: string }> {
+    const { acceptShopifyProduct } = await import('../../chain_stage.mjs');
+    const recorded = acceptShopifyProduct(productData);
+    if (!recorded.ok) {
+      return { success: false, message: recorded.error };
+    }
     const product = this.transformProduct(productData);
-    console.log(`Shopify product updated: ${product.title}`);
-    return { success: true, message: `Product ${product.title} updated` };
+    console.log(`Shopify product ${change}: ${product.title}`);
+    return { success: true, message: `Product ${product.title} ${change}` };
   }
 
   // ==========================================================================
@@ -774,9 +932,11 @@ export class ShopifyService {
   async registerWebhooks(callbackUrl: string): Promise<void> {
     const topics = [
       'orders/paid',
+      'orders/updated',
       'orders/cancelled',
       'customers/create',
       'customers/update',
+      'products/create',
       'products/update',
     ];
 

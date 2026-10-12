@@ -180,9 +180,121 @@ function courseModuleId(item) {
   return /^\d+$/.test(fromProperty) ? fromProperty : "";
 }
 
+function namedEmail(value) {
+  if (typeof value !== "string") return "";
+  const email = value.trim().toLowerCase();
+  return email.includes("@") ? email : "";
+}
+
+function orderEmail(order) {
+  return namedEmail(order?.email) || namedEmail(order?.customer?.email);
+}
+
+function orderLabel(order) {
+  for (const key of ["order_number", "orderNumber", "name", "id"]) {
+    const value = order?.[key];
+    if (typeof value === "string") {
+      const textValue = value.trim();
+      if (textValue) return textValue;
+      continue;
+    }
+    if (value) return String(value).trim();
+  }
+  return "";
+}
+
+function lineAttributeValues(entries) {
+  const names = {
+    location: "location",
+    milligrams: "milligrams",
+    kind: "kind",
+    practitioner_id: "practitioner_id",
+    practitionerid: "practitioner_id",
+  };
+  const found = {};
+  if (!Array.isArray(entries)) return found;
+  for (const prop of entries) {
+    if (!prop || typeof prop !== "object") continue;
+    const name = String(prop.name ?? prop.key ?? "").trim().toLowerCase();
+    const canonical = names[name];
+    if (!canonical || Object.hasOwn(found, canonical)) continue;
+    found[canonical] = prop.value;
+  }
+  return found;
+}
+
+function textOrSame(value) {
+  if (typeof value === "string") {
+    const textValue = value.trim();
+    return textValue || null;
+  }
+  return value == null ? null : value;
+}
+
+function missingAmount(value) {
+  return value == null || (typeof value === "string" && value.trim() === "");
+}
+
+function shopifyLineSale(item, defaults) {
+  let location = textOrSame(item.location);
+  let milligrams = missingAmount(item.milligrams) ? null : item.milligrams;
+  let kind = typeof item.kind === "string" && item.kind.trim() ? item.kind.trim() : null;
+  let practitioner = namedId(item, "practitionerId", "practitioner_id");
+  const props = lineAttributeValues(item.properties);
+  if (location == null && props.location != null) location = textOrSame(props.location);
+  if (milligrams == null && !missingAmount(props.milligrams)) milligrams = props.milligrams;
+  if (kind == null && typeof props.kind === "string") kind = props.kind.trim() || null;
+  if (!practitioner && props.practitioner_id != null) {
+    practitioner = String(props.practitioner_id).trim();
+  }
+  if (location == null && defaults.location != null) location = textOrSame(defaults.location);
+  if (milligrams == null && !missingAmount(defaults.milligrams)) milligrams = defaults.milligrams;
+  if (kind == null && typeof defaults.kind === "string") kind = defaults.kind.trim() || null;
+  if (!practitioner && defaults.practitioner_id) practitioner = String(defaults.practitioner_id).trim();
+  return { location, milligrams, kind, practitioner };
+}
+
+function shopifyProductSaleCommands(order, practitionerId) {
+  const items = Array.isArray(order.line_items) ? order.line_items : [];
+  const defaults = lineAttributeValues(order.note_attributes);
+  if (!defaults.practitioner_id && practitionerId) defaults.practitioner_id = practitionerId;
+  const sales = [];
+  items.forEach((item, index) => {
+    if (!item || typeof item !== "object") return;
+    if (courseModuleId(item)) return;
+    const sku = namedKitSku(item);
+    if (!sku) return;
+    const sale = shopifyLineSale(item, defaults);
+    if (sale.location == null && sale.milligrams == null && sale.kind == null) return;
+    const counted = wholeCount(sale.milligrams);
+    if (typeof sale.location !== "string" || !Number.isInteger(counted)) {
+      throw new Error(`sku ${sku} requires location and milligrams`);
+    }
+    const orderId = orderLabel(order);
+    if (!orderId) throw new Error("order number is required");
+    const kind = sale.kind || "retail";
+    if (kind !== "retail" && kind !== "treatment") {
+      throw new Error(`unknown fulfillment kind ${kind}`);
+    }
+    const args = {
+      fulfillment_id: `${orderId}:${index}:${sku}`,
+      sku_id: sku,
+      location: text(sale.location, "location"),
+      milligrams: positive(counted, "milligrams"),
+      kind,
+    };
+    if (kind === "treatment") {
+      if (!sale.practitioner) throw new Error("practitioner_id is required");
+      args.practitioner_id = sale.practitioner;
+    }
+    sales.push({ command: "fulfill", args });
+  });
+  return sales;
+}
+
 export function paidShopifyCourseCommands(order) {
   if (!order || typeof order !== "object") return [];
-  const orderUser = namedOrderValue(order, ["user_id", "userId", "practitioner_id"]);
+  const orderUser = namedOrderValue(order, ["user_id", "userId", "practitioner_id"]) || orderEmail(order);
   const items = Array.isArray(order.line_items) ? order.line_items : [];
   const seen = new Set();
   const courses = [];
@@ -199,11 +311,367 @@ export function paidShopifyCourseCommands(order) {
       course: namedId(item, "title", "name") || `module ${moduleId}`,
     });
   }
-  return courses.flatMap((course) => courseOrderCommands(course));
+  return [
+    ...courses.flatMap((course) => courseOrderCommands(course)),
+    ...shopifyProductSaleCommands(order, orderUser),
+  ];
+}
+
+export function shopifyOrderReturned(order) {
+  if (!order || typeof order !== "object") return false;
+  if (order.cancelled_at || order.cancel_reason) return true;
+  const financial = String(order.financial_status || "").trim().toLowerCase();
+  if (financial === "refunded" || financial === "voided") return true;
+  return String(order.fulfillment_status || "").trim().toLowerCase() === "restocked";
+}
+
+function shopifyNamesRefundLines(order) {
+  const refunds = order?.refunds;
+  if (!Array.isArray(refunds)) return false;
+  return refunds.some(
+    (refund) =>
+      refund &&
+      typeof refund === "object" &&
+      Array.isArray(refund.refund_line_items) &&
+      refund.refund_line_items.length > 0,
+  );
+}
+
+export function shopifyPartlyRefunded(order) {
+  const financial = String(order?.financial_status || "").trim().toLowerCase();
+  if (financial) return financial === "partially_refunded";
+  return shopifyNamesRefundLines(order);
 }
 
 export function acceptPaidShopifyOrder(order) {
+  if (shopifyOrderReturned(order)) return acceptPaidShopifyReturn(order);
+  if (shopifyPartlyRefunded(order)) return acceptPartlyRefundedShopifyOrder(order);
   return commitCourseCommands(() => paidShopifyCourseCommands(order), true);
+}
+
+function blankQuantity(value) {
+  return value == null || (typeof value === "string" && value.trim() === "");
+}
+
+function positiveQuantity(value) {
+  const counted = wholeCount(value);
+  if (!Number.isInteger(counted) || counted < 1) {
+    throw new Error("quantity must be a positive integer");
+  }
+  return counted;
+}
+
+function soldQuantity(line, orderLine) {
+  let sold = line?.quantity;
+  if (blankQuantity(sold) && orderLine && orderLine !== line) sold = orderLine.quantity;
+  if (blankQuantity(sold) || sold === 0) sold = 1;
+  return positiveQuantity(sold);
+}
+
+function lineId(value) {
+  if (typeof value === "boolean" || value == null) return "";
+  return String(value).trim();
+}
+
+function uniqueSkuIndex(items, sku) {
+  if (!sku) return undefined;
+  const matched = [];
+  items.forEach((item, index) => {
+    if (item && typeof item === "object" && namedKitSku(item) === sku) matched.push(index);
+  });
+  return matched.length === 1 ? matched[0] : undefined;
+}
+
+function soleSkuIndex(items) {
+  const matched = [];
+  items.forEach((item, index) => {
+    if (item && typeof item === "object" && namedKitSku(item)) matched.push(index);
+  });
+  return matched.length === 1 ? matched[0] : undefined;
+}
+
+function ledgerRecords() {
+  const raw = process.env.SKINTWIN_CHAIN_LEDGER;
+  if (!raw || !existsSync(raw)) return [];
+  const records = [];
+  for (const line of readFileSync(raw, "utf8").split("\n")) {
+    if (!line.trim()) continue;
+    records.push(JSON.parse(line));
+  }
+  return records;
+}
+
+function recordedSaleIds(orderId) {
+  const ids = new Set();
+  if (!orderId) return ids;
+  const prefix = `${orderId}:`;
+  for (const record of ledgerRecords()) {
+    if (record.command !== "fulfill") continue;
+    const fulfillmentId = record.args?.fulfillment_id;
+    if (typeof fulfillmentId !== "string" || !fulfillmentId.startsWith(prefix)) continue;
+    const rest = fulfillmentId.slice(prefix.length);
+    const split = rest.indexOf(":");
+    if (split <= 0 || !/^\d+$/.test(rest.slice(0, split))) continue;
+    ids.add(fulfillmentId);
+  }
+  return ids;
+}
+
+function commandKey(command) {
+  const args = command?.args || {};
+  if (command?.command === "certify_practitioner" && args.certificate_id) {
+    return `certify_practitioner\0${args.certificate_id}`;
+  }
+  if (command?.command === "fulfill" && args.fulfillment_id) {
+    return `fulfill\0${args.fulfillment_id}`;
+  }
+  if (command?.command === "return_sale" && args.return_id) {
+    return `return_sale\0${args.return_id}`;
+  }
+  return "";
+}
+
+function sameArgs(left, right) {
+  const prior = left || {};
+  const next = right || {};
+  const keys = new Set([...Object.keys(prior), ...Object.keys(next)]);
+  for (const key of keys) {
+    if (prior[key] !== next[key]) return false;
+  }
+  return true;
+}
+
+function freshCommands(commands) {
+  const found = new Map();
+  for (const record of ledgerRecords()) {
+    const key = commandKey(record);
+    if (key) found.set(key, record.args || {});
+  }
+  const fresh = [];
+  for (const command of commands) {
+    const key = commandKey(command);
+    if (!key || !found.has(key)) {
+      fresh.push(command);
+      continue;
+    }
+    if (!sameArgs(found.get(key), command.args)) return null;
+  }
+  return fresh;
+}
+
+function refundedProductReturns(order, saleIds) {
+  if (!order || typeof order !== "object") return [];
+  const items = Array.isArray(order.line_items) ? order.line_items : [];
+  const indexes = new Map();
+  items.forEach((item, index) => {
+    if (!item || typeof item !== "object") return;
+    const key = lineId(item.id);
+    if (key) indexes.set(key, index);
+  });
+  if (order.refunds != null && !Array.isArray(order.refunds)) {
+    throw new Error("refunds must be a list");
+  }
+  const refunds = Array.isArray(order.refunds) ? order.refunds : [];
+  const orderId = orderLabel(order);
+  if (!orderId) return [];
+  const returns = [];
+  const seen = new Set();
+  for (const refund of refunds) {
+    if (!refund || typeof refund !== "object") throw new Error("each refund must be an object");
+    if (refund.refund_line_items != null && !Array.isArray(refund.refund_line_items)) {
+      throw new Error("refund_line_items must be a list");
+    }
+    const lines = Array.isArray(refund.refund_line_items) ? refund.refund_line_items : [];
+    for (const refundLine of lines) {
+      if (!refundLine || typeof refundLine !== "object") throw new Error("each refund line must be an object");
+      const refundItem =
+        refundLine.line_item && typeof refundLine.line_item === "object" ? refundLine.line_item : null;
+      const key = lineId(refundItem?.id) || lineId(refundLine.line_item_id);
+      const refundSku = namedKitSku(refundItem);
+      let index = key ? indexes.get(key) : undefined;
+      if (index == null) index = uniqueSkuIndex(items, refundSku);
+      if (index == null && !key && !refundSku) index = soleSkuIndex(items);
+      if (index == null) continue;
+      const orderLine = items[index];
+      if (!orderLine || typeof orderLine !== "object" || courseModuleId(orderLine)) continue;
+      const line = refundItem || orderLine;
+      let refundedQty;
+      let soldQty;
+      try {
+        refundedQty = positiveQuantity(refundLine.quantity);
+        soldQty = soldQuantity(line, orderLine);
+      } catch {
+        continue;
+      }
+      if (refundedQty !== soldQty) continue;
+      const sku = namedKitSku(line) || namedKitSku(orderLine);
+      if (!sku) continue;
+      const fulfillmentId = `${orderId}:${index}:${sku}`;
+      if (!saleIds.has(fulfillmentId) || seen.has(fulfillmentId)) continue;
+      seen.add(fulfillmentId);
+      returns.push({
+        command: "return_sale",
+        args: { return_id: `return:${fulfillmentId}`, fulfillment_id: fulfillmentId },
+      });
+    }
+  }
+  return returns;
+}
+
+function acceptPartlyRefundedShopifyOrder(order) {
+  let commands;
+  try {
+    const drawn = paidShopifyCourseCommands(order);
+    const saleIds = new Set(
+      drawn.filter((command) => command.command === "fulfill").map((command) => command.args.fulfillment_id),
+    );
+    for (const id of recordedSaleIds(orderLabel(order))) saleIds.add(id);
+    commands = freshCommands([...drawn, ...refundedProductReturns(order, saleIds)]);
+  } catch (error) {
+    return { ok: false, error: error.message };
+  }
+  if (commands === null) return { ok: false, error: "id already exists" };
+  if (commands.length === 0) return { ok: true, count: 0 };
+  if (!useSharedLedger()) return { ok: false, error: "supply-chain hub is not present" };
+  const locate = loadChainLocate();
+  if (!locate) return { ok: false, error: "supply-chain hub is not present" };
+  const committed = locate.commitCommands(commands);
+  return committed.ok ? { ok: true, count: commands.length } : committed;
+}
+
+function recordedSaleReturns(orderId) {
+  if (!orderId) return [];
+  const raw = process.env.SKINTWIN_CHAIN_LEDGER;
+  if (!raw || !existsSync(raw)) return [];
+  const prefix = `${orderId}:`;
+  const fulfillments = new Map();
+  const returns = new Map();
+  for (const line of readFileSync(raw, "utf8").split("\n")) {
+    if (!line.trim()) continue;
+    const record = JSON.parse(line);
+    const args = record.args || {};
+    if (record.command === "fulfill" && typeof args.fulfillment_id === "string") {
+      const fulfillmentId = args.fulfillment_id;
+      if (!fulfillmentId.startsWith(prefix)) continue;
+      const rest = fulfillmentId.slice(prefix.length);
+      const split = rest.indexOf(":");
+      if (split <= 0 || !/^\d+$/.test(rest.slice(0, split))) continue;
+      fulfillments.set(fulfillmentId, fulfillmentId);
+    }
+    if (record.command === "return_sale" && typeof args.return_id === "string") {
+      returns.set(args.return_id, args.fulfillment_id);
+    }
+  }
+  const commands = [];
+  for (const fulfillmentId of fulfillments.values()) {
+    const returnId = `return:${fulfillmentId}`;
+    if (!returns.has(returnId)) {
+      commands.push({
+        command: "return_sale",
+        args: { return_id: returnId, fulfillment_id: fulfillmentId },
+      });
+      continue;
+    }
+    if (returns.get(returnId) !== fulfillmentId) throw new Error("id already exists");
+  }
+  return commands;
+}
+
+export function paidShopifyReturnCommands(order) {
+  if (!order || typeof order !== "object") return [];
+  const orderUser = namedOrderValue(order, ["user_id", "userId", "practitioner_id"]) || orderEmail(order);
+  const named = shopifyProductSaleCommands(order, orderUser).map((command) => ({
+    command: "return_sale",
+    args: {
+      return_id: `return:${command.args.fulfillment_id}`,
+      fulfillment_id: command.args.fulfillment_id,
+    },
+  }));
+  const seen = new Set(named.map((command) => command.args.fulfillment_id));
+  const omitted = recordedSaleReturns(orderLabel(order)).filter(
+    (command) => !seen.has(command.args.fulfillment_id),
+  );
+  return [...named, ...omitted];
+}
+
+export function acceptPaidShopifyReturn(order) {
+  return commitCourseCommands(() => paidShopifyReturnCommands(order), true);
+}
+
+function formulaFromShopify(product) {
+  if (!product || typeof product !== "object") return "";
+  const direct = namedId(product, "formulaId", "formula_id");
+  if (direct) return direct;
+  const metafields = Array.isArray(product.metafields) ? product.metafields : [];
+  for (const field of metafields) {
+    if (!field || typeof field !== "object") continue;
+    if (field.key !== "formula_id" && field.key !== "formulaId") continue;
+    if (typeof field.value === "string" && field.value.trim()) return field.value.trim();
+  }
+  let tags = product.tags;
+  if (typeof tags === "string") tags = tags.split(",");
+  if (!Array.isArray(tags)) return "";
+  for (const tag of tags) {
+    const value = String(tag).trim();
+    const marker = "formula:";
+    if (!value.toLowerCase().startsWith(marker)) continue;
+    const formula = value.slice(marker.length).trim();
+    if (formula) return formula;
+  }
+  return "";
+}
+
+function catalogName(product) {
+  return text(namedId(product, "title", "name"), "name");
+}
+
+function catalogSkus(product, name) {
+  const variants = Array.isArray(product.variants) ? product.variants : [];
+  const skus = [];
+  const seen = new Set();
+  for (const variant of variants) {
+    if (!variant || typeof variant !== "object") continue;
+    const sku = namedKitSku(variant);
+    if (!sku || seen.has(sku)) continue;
+    seen.add(sku);
+    skus.push(sku);
+  }
+  if (skus.length > 0) return skus;
+  return [text(namedKitSku(product) || name, "sku")];
+}
+
+export function shopifyCatalogCommands(product) {
+  if (!product || typeof product !== "object") return [];
+  const formulaId = formulaFromShopify(product);
+  if (formulaId) {
+    const name = catalogName(product);
+    return catalogSkus(product, name).map((sku) => ({
+      command: "catalog_sku",
+      args: { sku_id: sku, formula_id: formulaId, name },
+    }));
+  }
+  const variants = Array.isArray(product.variants) ? product.variants : [];
+  const named = [];
+  const seen = new Set();
+  for (const variant of variants) {
+    if (!variant || typeof variant !== "object") continue;
+    const sku = namedKitSku(variant);
+    if (!sku || seen.has(sku)) continue;
+    const variantFormula = formulaFromShopify(variant);
+    if (!variantFormula) continue;
+    seen.add(sku);
+    named.push([sku, variantFormula]);
+  }
+  if (named.length === 0) return [];
+  const name = catalogName(product);
+  return named.map(([sku, variantFormula]) => ({
+    command: "catalog_sku",
+    args: { sku_id: sku, formula_id: variantFormula, name },
+  }));
+}
+
+export function acceptShopifyProduct(product) {
+  return commitCourseCommands(() => shopifyCatalogCommands(product), true);
 }
 
 export function shopifyCourseCommands(courses) {
@@ -231,8 +699,9 @@ function commitCourseCommands(build, allowEmpty = false) {
 }
 
 export function recordCertificate(body) {
-  const moduleId = namedId(body, "moduleId", "module_id");
-  const userId = namedId(body, "userId", "user_id", "practitioner_id");
+  const moduleFromModule = namedId(body, "moduleId", "module_id");
+  const moduleId = moduleFromModule || namedId(body, "courseId", "course_id");
+  const userId = namedId(body, "userId", "user_id", "practitioner_id", "therapistEmail", "therapist_email");
   if (!moduleId || !userId) {
     return { ok: false, error: "certificate requires a module and a practitioner" };
   }
@@ -240,7 +709,7 @@ export function recordCertificate(body) {
   return handleStage({
     command: "certify_practitioner",
     args: {
-      certificate_id: moduleId,
+      certificate_id: moduleFromModule ? moduleId : `course:${userId}:${moduleId}`,
       practitioner_id: userId,
       course: namedId(body, "course", "title") || moduleId,
     },

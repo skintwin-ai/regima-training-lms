@@ -44,6 +44,9 @@ router.post('/products', async (req: Request, res: Response) => {
       message: `Shopify product created for module: ${module.title}`,
     });
   } catch (error) {
+    if (error instanceof Error && error.name === "SupplyChainRejection") {
+      return res.status(400).json({ error: error.message });
+    }
     console.error('Create Shopify product error:', error);
     res.status(500).json({ error: 'Failed to create Shopify product' });
   }
@@ -71,6 +74,9 @@ router.put('/products/:productId', async (req: Request, res: Response) => {
       message: 'Shopify product updated',
     });
   } catch (error) {
+    if (error instanceof Error && error.name === "SupplyChainRejection") {
+      return res.status(400).json({ error: error.message });
+    }
     console.error('Update Shopify product error:', error);
     res.status(500).json({ error: 'Failed to update Shopify product' });
   }
@@ -389,24 +395,19 @@ router.post('/orders/:orderId/process', async (req: Request, res: Response) => {
     }
 
     const shopifyService = getShopifyService();
-    const order = await shopifyService.getOrder(orderId);
+    const stored = await shopifyService.processStoredOrder(orderId, userId);
 
-    if (!order) {
+    if (!stored) {
       return res.status(404).json({ error: 'Order not found' });
     }
-
-    const { acceptShopifyCourses } = await import('../../chain_stage.mjs');
-    const accepted = acceptShopifyCourses(shopifyService.courseOrdersFor(order, Number(userId)));
-    if (!accepted.ok) {
-      return res.status(400).json({ error: accepted.error });
+    if (!stored.ok) {
+      return res.status(400).json({ error: stored.error });
     }
-
-    const enrollments = await shopifyService.processOrderForEnrollment(order, userId);
 
     res.json({
       success: true,
-      enrollments,
-      message: `Processed ${enrollments.length} enrollment(s) from order ${order.name}`,
+      enrollments: stored.enrollments,
+      message: `Processed ${stored.enrollments.length} enrollment(s) from order ${stored.order.name}`,
     });
   } catch (error) {
     console.error('Process order error:', error);
