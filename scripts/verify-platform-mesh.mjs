@@ -236,9 +236,25 @@ async function main() {
     const res = await fetch(`${BASE.connect}/api/platform/health`);
     const body = await res.json();
     if (!body.ok) throw new Error(JSON.stringify(body));
-    await ok('connect_health', body);
+    if (!body.meshReady) throw new Error(`mesh peers not reachable: ${JSON.stringify(body.peers)}`);
+    await ok('connect_health', {
+      meshReady: body.meshReady,
+      integrations: body.integrations,
+      peers: body.peers,
+    });
+    report.liveRails = {
+      available: Boolean(body.integrations?.stripe),
+      stripeMode: body.integrations?.stripeMode || 'local',
+      note: body.integrations?.stripe
+        ? 'Live Stripe secret configured on Connect'
+        : 'Bind Stripe, Paystack, and Shopify secrets to exercise live settlement',
+    };
   } catch (e) {
     fail('connect_health', e);
+    report.liveRails = {
+      available: false,
+      note: 'Connect health check failed before rail classification',
+    };
   }
 
   try {
@@ -249,10 +265,12 @@ async function main() {
     fail('salon_gatsby_http', e);
   }
 
-  report.liveRails = {
-    available: false,
-    note: 'Bind Stripe, Paystack, and Shopify secrets to exercise live settlement',
-  };
+  if (!report.liveRails) {
+    report.liveRails = {
+      available: false,
+      note: 'No live rail classification recorded',
+    };
+  }
 
   report.overall = Object.values(report.checks).every((c) => c.ok);
   write();
