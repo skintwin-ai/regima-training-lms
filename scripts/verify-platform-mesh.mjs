@@ -272,6 +272,16 @@ async function main() {
     };
   }
 
+  const stripeLocal = Boolean(report.checks.connect_local_checkout?.ok);
+  const paystackLocal = Boolean(report.checks.salon_paystack_local?.ok);
+  const shopifyLocal = Boolean(report.checks.lms_shopify_local_enroll?.ok);
+  report.localRails = {
+    stripe: stripeLocal,
+    paystack: paystackLocal,
+    shopify: shopifyLocal,
+    allVerified: stripeLocal && paystackLocal && shopifyLocal,
+  };
+
   report.overall = Object.values(report.checks).every((c) => c.ok);
   write();
 }
