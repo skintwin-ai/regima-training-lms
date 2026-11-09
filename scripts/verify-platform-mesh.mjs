@@ -30,6 +30,23 @@ async function ok(name, detail) {
   report.checks[name] = {ok: true, ...detail};
 }
 
+function parseAcceptanceField(text, label) {
+  const patterns = [
+    new RegExp(`\\*\\*${label}:\\*\\*\\s*(.+)$`, 'im'),
+    new RegExp(`${label}:\\s*\\*\\*([^*]+)\\*\\*`, 'im'),
+    new RegExp(`${label}:\\s*(.+)$`, 'im'),
+  ];
+  for (const re of patterns) {
+    const m = text.match(re);
+    if (!m?.[1]) continue;
+    const value = m[1].trim().replace(/\*+/g, '').trim();
+    if (!value) continue;
+    const blocked = /^(pending|tbd|_|\.|-|\s|fill\s*in|_+\s*)$/i.test(value);
+    if (!blocked && !/^[_\-\s.]+$/.test(value)) return value;
+  }
+  return '';
+}
+
 function readLocalRailAcceptance() {
   const candidates = [
     process.env.PLATFORM_ACCEPTANCE_FILE,
@@ -41,9 +58,9 @@ function readLocalRailAcceptance() {
       if (!fs.existsSync(p)) continue;
       const text = fs.readFileSync(p, 'utf8');
       if (!/ACCEPT_LOCAL_RAILS_ONLY\s*=\s*true/i.test(text)) continue;
-      const by = text.match(/Accepted by:\s*(.+)/m)?.[1]?.trim() ?? '';
-      const date = text.match(/Date:\s*(.+)/m)?.[1]?.trim() ?? '';
-      if (by && !/^[_\-\s.]+$/.test(by) && date && !/^[_\-\s.]+$/.test(date)) {
+      const by = parseAcceptanceField(text, 'Accepted by');
+      const date = parseAcceptanceField(text, 'Date');
+      if (by && date) {
         return {signed: true, acceptedBy: by, date, file: p};
       }
     } catch {
