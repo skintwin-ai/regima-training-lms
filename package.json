@@ -11,6 +11,7 @@
     "check": "tsc",
     "test": "vitest run",
     "verify:mesh": "node scripts/verify-platform-mesh.mjs",
+    "verify:mesh:closure": "node scripts/verify-platform-mesh.mjs && node scripts/assert-platform-closure.mjs",
     "db:push": "drizzle-kit push",
     "download-images": "node scripts/download-images.js"
   },
