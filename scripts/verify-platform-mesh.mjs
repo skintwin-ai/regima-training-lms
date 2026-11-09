@@ -30,6 +30,49 @@ async function ok(name, detail) {
   report.checks[name] = {ok: true, ...detail};
 }
 
+function readLocalRailAcceptance() {
+  const candidates = [
+    process.env.PLATFORM_ACCEPTANCE_FILE,
+    '/opt/cursor/artifacts/PLATFORM_ACCEPTANCE.md',
+    path.join(path.dirname(fileURLToPath(import.meta.url)), '../../PLATFORM_ACCEPTANCE.md'),
+  ].filter(Boolean);
+  for (const p of candidates) {
+    try {
+      if (!fs.existsSync(p)) continue;
+      const text = fs.readFileSync(p, 'utf8');
+      if (!/ACCEPT_LOCAL_RAILS_ONLY\s*=\s*true/i.test(text)) continue;
+      const by = text.match(/Accepted by:\s*(.+)/m)?.[1]?.trim() ?? '';
+      const date = text.match(/Date:\s*(.+)/m)?.[1]?.trim() ?? '';
+      if (by && !/^[_\-\s.]+$/.test(by) && date && !/^[_\-\s.]+$/.test(date)) {
+        return {signed: true, acceptedBy: by, date, file: p};
+      }
+    } catch {
+      // try next path
+    }
+  }
+  return {signed: false};
+}
+
+function attachClosureGate() {
+  const acceptance = readLocalRailAcceptance();
+  const engineeringOk = Boolean(report.overall);
+  const localRailsOk = Boolean(report.localRails?.allVerified);
+  const liveOk = Boolean(report.liveRails?.available);
+  const blockedBy = [];
+  if (!engineeringOk) blockedBy.push('mesh_checks_failed');
+  if (!localRailsOk) blockedBy.push('local_rails_incomplete');
+  if (!liveOk && !acceptance.signed) blockedBy.push('need_live_rails_or_signed_acceptance');
+  report.closureGate = {
+    engineeringVerified: engineeringOk,
+    localRailsVerified: localRailsOk,
+    liveRailsVerified: liveOk,
+    localRailAcceptanceSigned: acceptance.signed,
+    acceptance,
+    goalComplete: engineeringOk && localRailsOk && (liveOk || acceptance.signed),
+    blockedBy,
+  };
+}
+
 async function main() {
   let platformSession;
   let lmsCookie;
@@ -287,6 +330,7 @@ async function main() {
 }
 
 function write() {
+  attachClosureGate();
   fs.writeFileSync(outFile, JSON.stringify(report, null, 2));
   console.log(JSON.stringify(report, null, 2));
   process.exit(report.overall ? 0 : 1);
